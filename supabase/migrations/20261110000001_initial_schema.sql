@@ -1,3 +1,18 @@
+-- Self-healing drop block to ensure clean execution if re-run
+DROP TABLE IF EXISTS public.reports CASCADE;
+DROP TABLE IF EXISTS public.listing_events CASCADE;
+DROP TABLE IF EXISTS public.listing_images CASCADE;
+DROP TABLE IF EXISTS public.listings CASCADE;
+DROP TABLE IF EXISTS public.categories CASCADE;
+DROP TABLE IF EXISTS public.seller_profiles CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+DROP TABLE IF EXISTS public.halls CASCADE;
+DROP TABLE IF EXISTS public.universities CASCADE;
+
+DROP TYPE IF EXISTS public.listing_availability_status CASCADE;
+DROP TYPE IF EXISTS public.report_reason CASCADE;
+DROP TYPE IF EXISTS public.report_status CASCADE;
+
 -- ==============================================================================
 -- Migration: 20261110000001_initial_schema.sql
 -- Campus Store: Core Relational Schema and Canonical Enums
@@ -135,10 +150,8 @@ CREATE TABLE public.listings (
   created_at           TIMESTAMPTZ                 NOT NULL DEFAULT now(),
   updated_at           TIMESTAMPTZ                 NOT NULL DEFAULT now(),
 
-  CONSTRAINT listings_price_check
-    CHECK (price IS NOT NULL OR price_negotiable = TRUE),
-  CONSTRAINT listings_timestamps_order
-    CHECK (confirm_before IS NULL OR expires_at IS NULL OR confirm_before <= expires_at)
+  CHECK (price IS NOT NULL OR price_negotiable = TRUE),
+  CHECK (confirm_before IS NULL OR expires_at IS NULL OR confirm_before <= expires_at)
 );
 
 CREATE INDEX idx_listings_seller_id            ON public.listings(seller_id);

@@ -100,7 +100,7 @@ export function SellerListingItem({ listing }: SellerListingItemProps) {
           <ExternalLink className="w-3 h-3 text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
         </Link>
 
-        <p className="text-xs sm:text-sm font-semibold text-neutral-900 tracking-tight">
+        <p className="text-xs sm:text-sm font-bold text-emerald-700 tracking-tight">
           {formatPrice(listing.price, listing.currency, listing.price_negotiable)}
         </p>
       </div>

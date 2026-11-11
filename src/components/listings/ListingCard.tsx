@@ -75,7 +75,7 @@ export function ListingCard({ listing, whatsappNumber = '+233501234567' }: Listi
 
         {/* Price */}
         <div className="mt-1.5 mb-2.5">
-          <p className="text-xs sm:text-sm sm:text-base font-semibold text-neutral-900 tracking-tight">
+          <p className="text-sm sm:text-base font-bold text-emerald-700 tracking-tight">
             {formatPrice(listing.price, listing.currency, listing.price_negotiable)}
           </p>
         </div>

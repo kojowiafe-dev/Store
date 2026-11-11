@@ -125,11 +125,11 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
               {listing.title}
             </h1>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl sm:text-2xl font-semibold text-neutral-900 tracking-tight">
+              <span className="text-2xl sm:text-3xl font-bold text-emerald-700 tracking-tight">
                 {formatPrice(listing.price, listing.currency, false)}
               </span>
               {listing.price_negotiable && (
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-600">
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/60">
                   Negotiable
                 </span>
               )}

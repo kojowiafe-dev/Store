@@ -41,6 +41,81 @@ SET name = EXCLUDED.name,
     default_expiry_hours = EXCLUDED.default_expiry_hours,
     default_confirm_lead_hours = EXCLUDED.default_confirm_lead_hours;
 
+
+-- 3.5 Create corresponding auth.users entries so profiles foreign key succeeds
+INSERT INTO auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  created_at,
+  updated_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  is_super_admin
+)
+VALUES
+  (
+    'aaaaaaaa-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'ama@campusstore.test',
+    '$2a$10$w0B7G4Z6BvE9b7tq4X8Vne9I0Y6I7J8K9L0M1N2O3P4Q5R6S7T8U9',
+    now(),
+    now(),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"display_name":"Ama Mensah"}'::jsonb,
+    FALSE
+  ),
+  (
+    'aaaaaaaa-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'kofi@campusstore.test',
+    '$2a$10$w0B7G4Z6BvE9b7tq4X8Vne9I0Y6I7J8K9L0M1N2O3P4Q5R6S7T8U9',
+    now(),
+    now(),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"display_name":"Kofi Asante"}'::jsonb,
+    FALSE
+  ),
+  (
+    'aaaaaaaa-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'esi@campusstore.test',
+    '$2a$10$w0B7G4Z6BvE9b7tq4X8Vne9I0Y6I7J8K9L0M1N2O3P4Q5R6S7T8U9',
+    now(),
+    now(),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"display_name":"Esi Boateng"}'::jsonb,
+    FALSE
+  ),
+  (
+    'aaaaaaaa-0000-0000-0000-000000000099',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'admin@campusstore.test',
+    '$2a$10$w0B7G4Z6BvE9b7tq4X8Vne9I0Y6I7J8K9L0M1N2O3P4Q5R6S7T8U9',
+    now(),
+    now(),
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"display_name":"Admin Moderator"}'::jsonb,
+    FALSE
+  )
+ON CONFLICT (id) DO NOTHING;
+
 -- 4. Test User Profiles (Matches auth.users created in local development)
 -- UUIDs prefixed with aaaaaaaa-0000-...
 INSERT INTO public.profiles (id, display_name, whatsapp_number, bio, is_admin, is_active)
