@@ -1,0 +1,81 @@
+'use client';
+
+import React, { useState, useTransition } from 'react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { updateSellerProfile } from '@/actions/seller.actions';
+
+interface SellerProfileFormProps {
+  initialDescription: string;
+}
+
+export function SellerProfileForm({ initialDescription }: SellerProfileFormProps) {
+  const [description, setDescription] = useState(initialDescription);
+  const [isPending, startTransition] = useTransition();
+  const [success, setSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccess(false);
+
+    startTransition(async () => {
+      const result = await updateSellerProfile({
+        store_description: description.trim() || undefined,
+      });
+
+      if (!result.success) {
+        setErrorMessage(result.error);
+        return;
+      }
+
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3.5 pt-1">
+      {errorMessage && (
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/80 flex items-center gap-2 text-xs text-rose-700">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center gap-2 text-xs text-emerald-700">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <span>Storefront profile updated successfully!</span>
+        </div>
+      )}
+
+      <div>
+        <label className="block text-xs font-medium text-neutral-700 mb-1.5">
+          Store Bio / Description
+        </label>
+        <textarea
+          rows={3}
+          maxLength={500}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Describe your offerings, pickup spots in Jean Nelson AKA Hall, or general hours..."
+          className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200/90 focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs resize-none font-normal placeholder:text-neutral-400"
+        />
+        <div className="flex justify-end text-[11px] text-neutral-400 mt-1 font-normal">
+          {description.length} / 500
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-1">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="px-4 py-2 rounded-lg text-xs font-medium text-white bg-ug-navy hover:bg-ug-navy-light transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+        >
+          {isPending ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+    </form>
+  );
+}
