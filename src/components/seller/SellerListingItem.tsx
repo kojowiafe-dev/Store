@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Clock,
   Archive,
+  Pencil,
 } from 'lucide-react';
 import {
   confirmAvailability,
@@ -162,6 +163,15 @@ export function SellerListingItem({ listing }: SellerListingItemProps) {
             <span>Pause</span>
           </button>
         )}
+
+        {/* Edit */}
+        <Link
+          href={`/seller/listings/${listing.id}/edit`}
+          className="p-1.5 rounded-lg text-neutral-400 hover:text-ug-navy hover:bg-neutral-100 transition-colors"
+          title="Edit listing"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Link>
 
         {/* Delete */}
         <button

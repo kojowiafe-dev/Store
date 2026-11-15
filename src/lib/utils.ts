@@ -14,12 +14,12 @@ export function formatPrice(
     return negotiable ? 'Price Negotiable' : 'Contact for Price';
   }
 
-  const formatted = new Intl.NumberFormat('en-GH', {
-    style: 'currency',
-    currency: currency,
+  const amount = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(price);
+  const symbol = currency === 'GHS' ? 'GH₵' : `${currency} `;
+  const formatted = `${symbol}${amount}`;
 
   return negotiable ? `${formatted} (Negotiable)` : formatted;
 }

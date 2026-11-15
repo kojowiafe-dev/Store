@@ -6,6 +6,7 @@ import { formatPrice } from '@/lib/utils';
 import { buildWhatsAppUrl } from '@/lib/whatsapp';
 import { StatusBadge } from '@/components/ui/Badge';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { BookmarkButton } from './BookmarkButton';
 import { WhatsAppContactButton } from './WhatsAppContactButton';
 import type { PublicListingCardDTO } from '@/types/api.types';
 
@@ -48,9 +49,12 @@ export function ListingCard({ listing, whatsappNumber }: ListingCardProps) {
           </div>
         )}
 
-        {/* Status Badge in corner */}
+        {/* Status Badge & Save Button */}
         <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 z-10">
           <StatusBadge status={listing.availability_status} />
+        </div>
+        <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 z-10">
+          <BookmarkButton listingId={listing.id} />
         </div>
       </Link>
 

@@ -221,6 +221,72 @@ export async function createListing(
   }
 }
 
+export async function updateListing(
+  listingId: string,
+  rawInput: CreateListingInput
+): Promise<ActionResult<{ id: string; slug: string }>> {
+  try {
+    const parseResult = CreateListingSchema.safeParse(rawInput);
+    if (!parseResult.success) {
+      return {
+        success: false,
+        error: 'Validation failed.',
+        fieldErrors: parseResult.error.flatten().fieldErrors,
+      };
+    }
+
+    const auth = await getAuthenticatedOwnedListing(listingId);
+    if (!auth.ok) return { success: false, error: auth.error };
+
+    const { supabase, userId, listing } = auth;
+    const input = parseResult.data;
+
+    const { error: updateError } = await supabase
+      .from('listings')
+      .update({
+        title: input.title,
+        category_id: input.category_id,
+        price: input.price ?? null,
+        price_negotiable: input.price_negotiable,
+        description: input.description ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', listingId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    // Sync photos if provided
+    await supabase.from('listing_images').delete().eq('listing_id', listingId);
+    if (input.photos && input.photos.length > 0) {
+      const imagesToInsert = input.photos.slice(0, MAX_LISTING_PHOTOS).map((path, idx) => ({
+        listing_id: listingId,
+        storage_path: path,
+        display_order: idx + 1,
+        is_primary: idx === 0,
+      }));
+      await supabase.from('listing_images').insert(imagesToInsert);
+    }
+
+    await supabase.from('listing_events').insert({
+      listing_id: listingId,
+      actor_id: userId,
+      event_type: 'updated',
+      payload: { title: input.title, price: input.price ?? null },
+    });
+
+    revalidateListingPaths(listing.slug, listing.seller_profiles?.storefront_slug);
+
+    return {
+      success: true,
+      data: { id: listing.id, slug: listing.slug },
+    };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'Failed to update listing.') };
+  }
+}
+
 export async function confirmAvailability(
   listingId: string
 ): Promise<ActionResult<{ confirmed: boolean }>> {

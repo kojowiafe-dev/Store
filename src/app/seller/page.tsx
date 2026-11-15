@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/server';
 import { PILOT_HALL, isSupabaseConfigured } from '@/lib/constants';
 import { SellerListingItem } from '@/components/seller/SellerListingItem';
 import { SignOutButton } from '@/components/seller/SignOutButton';
+import { StoreQRCodeModal } from '@/components/seller/StoreQRCodeModal';
 import { ShareButton } from '@/components/ui/ShareButton';
 import type { ListingAvailabilityStatus } from '@/types/database.types';
 
@@ -42,6 +43,7 @@ interface DashboardSeller {
 export default async function SellerDashboardPage() {
   let seller: DashboardSeller | null = null;
   let listings: DashboardListing[] = [];
+  let whatsappTaps = 0;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -80,9 +82,21 @@ export default async function SellerDashboardPage() {
         .order('created_at', { ascending: false });
 
       listings = (listingData ?? []) as DashboardListing[];
+
+      if (listings.length > 0) {
+        const listingIds = listings.map((l) => l.id);
+        const { count } = await supabase
+          .from('listing_events')
+          .select('*', { count: 'exact', head: true })
+          .in('listing_id', listingIds)
+          .eq('event_type', 'contact_tapped');
+
+        whatsappTaps = count ?? 0;
+      }
     }
   } else {
     // Demo / offline fallback mode for local evaluation
+    whatsappTaps = 14;
     seller = {
       id: 'bbbbbbbb-0000-0000-0000-000000000001',
       store_name: "Ama's Kitchen (Demo)",
@@ -138,6 +152,10 @@ export default async function SellerDashboardPage() {
   }
 
   const hallName = seller.halls?.name ?? PILOT_HALL.name;
+  const activeCount = listings.filter((l) => l.availability_status === 'AVAILABLE').length;
+  const needsConfirmCount = listings.filter(
+    (l) => l.availability_status === 'NEEDS_CONFIRMATION'
+  ).length;
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-3xl mx-auto">
@@ -190,6 +208,10 @@ export default async function SellerDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <StoreQRCodeModal
+              storeName={seller.store_name}
+              storefrontSlug={seller.storefront_slug}
+            />
             <ShareButton
               title={`${seller.store_name} on Campus Store`}
               text={`Check out ${seller.store_name} on Campus Store (Jean Nelson AKA Hall):`}
@@ -205,6 +227,24 @@ export default async function SellerDashboardPage() {
               <span>Post Listing</span>
             </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Quick Seller Insights */}
+      <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+        <div className="bg-white border border-neutral-200/80 rounded-xl p-3 sm:p-4 shadow-2xs">
+          <p className="text-[11px] text-neutral-400 font-normal">Active Items</p>
+          <p className="text-lg sm:text-xl font-semibold text-neutral-900 mt-0.5">{activeCount}</p>
+        </div>
+        <div className="bg-white border border-neutral-200/80 rounded-xl p-3 sm:p-4 shadow-2xs">
+          <p className="text-[11px] text-neutral-400 font-normal">Needs Stock Check</p>
+          <p className="text-lg sm:text-xl font-semibold text-amber-600 mt-0.5">
+            {needsConfirmCount}
+          </p>
+        </div>
+        <div className="bg-white border border-neutral-200/80 rounded-xl p-3 sm:p-4 shadow-2xs">
+          <p className="text-[11px] text-neutral-400 font-normal">WhatsApp Taps</p>
+          <p className="text-lg sm:text-xl font-semibold text-emerald-700 mt-0.5">{whatsappTaps}</p>
         </div>
       </div>
 

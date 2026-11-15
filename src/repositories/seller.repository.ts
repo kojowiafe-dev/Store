@@ -161,3 +161,49 @@ export async function getSellerProfileByUserId(userId: string): Promise<SellerPr
     return null;
   }
 }
+
+export interface StorefrontSummary {
+  id: string;
+  store_name: string;
+  storefront_slug: string;
+  storefront_image_url: string | null;
+}
+
+export async function getApprovedStorefronts(limit = 10): Promise<StorefrontSummary[]> {
+  try {
+    if (!isSupabaseConfigured()) {
+      return Object.values(FALLBACK_STOREFRONTS).map((s) => ({
+        id: s.id,
+        store_name: s.store_name,
+        storefront_slug: s.storefront_slug,
+        storefront_image_url: s.storefront_image_url,
+      }));
+    }
+
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('seller_profiles')
+      .select('id, store_name, storefront_slug, storefront_image_url')
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error || !data) {
+      return Object.values(FALLBACK_STOREFRONTS).map((s) => ({
+        id: s.id,
+        store_name: s.store_name,
+        storefront_slug: s.storefront_slug,
+        storefront_image_url: s.storefront_image_url,
+      }));
+    }
+
+    return data;
+  } catch {
+    return Object.values(FALLBACK_STOREFRONTS).map((s) => ({
+      id: s.id,
+      store_name: s.store_name,
+      storefront_slug: s.storefront_slug,
+      storefront_image_url: s.storefront_image_url,
+    }));
+  }
+}

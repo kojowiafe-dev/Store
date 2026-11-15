@@ -3,7 +3,7 @@
 import React, { useState, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Clock, UploadCloud, X, ImagePlus } from 'lucide-react';
-import { createListing } from '@/actions/listing.actions';
+import { createListing, updateListing } from '@/actions/listing.actions';
 import { createClient } from '@/lib/supabase/client';
 import {
   MAX_LISTING_PHOTOS,
@@ -16,34 +16,63 @@ import type { Database } from '@/types/database.types';
 
 type CategoryRow = Database['public']['Tables']['categories']['Row'];
 
+export interface EditableListingData {
+  id: string;
+  title: string;
+  category_id: string;
+  price: number | null;
+  price_negotiable: boolean;
+  description: string | null;
+  photos: string[];
+}
+
 interface ListingFormProps {
   categories: CategoryRow[];
+  initialListing?: EditableListingData;
 }
 
 interface SelectedPhoto {
   id: string;
-  file: File;
+  file?: File;
   previewUrl: string;
+  existingUrl?: string;
 }
 
-export function ListingForm({ categories }: ListingFormProps) {
+export function ListingForm({ categories, initialListing }: ListingFormProps) {
+  const isEditing = Boolean(initialListing);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
 
-  const [title, setTitle] = useState('');
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
-  const [price, setPrice] = useState('');
-  const [priceNegotiable, setPriceNegotiable] = useState(false);
-  const [description, setDescription] = useState('');
-  const [photos, setPhotos] = useState<SelectedPhoto[]>([]);
+  const [title, setTitle] = useState(initialListing?.title ?? '');
+  const [categoryId, setCategoryId] = useState(
+    initialListing?.category_id ?? categories[0]?.id ?? ''
+  );
+  const [price, setPrice] = useState(
+    initialListing?.price !== null && initialListing?.price !== undefined
+      ? String(initialListing.price)
+      : ''
+  );
+  const [priceNegotiable, setPriceNegotiable] = useState(
+    initialListing?.price_negotiable ?? false
+  );
+  const [description, setDescription] = useState(initialListing?.description ?? '');
+  const [photos, setPhotos] = useState<SelectedPhoto[]>(() =>
+    (initialListing?.photos ?? []).map((url, idx) => ({
+      id: `existing-${idx}`,
+      previewUrl: url,
+      existingUrl: url,
+    }))
+  );
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     return () => {
-      photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      photos.forEach((p) => {
+        if (p.file) URL.revokeObjectURL(p.previewUrl);
+      });
     };
   }, [photos]);
 
@@ -86,14 +115,21 @@ export function ListingForm({ categories }: ListingFormProps) {
   const removePhoto = (id: string) => {
     setPhotos((prev) => {
       const target = prev.find((p) => p.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      if (target?.file) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((p) => p.id !== id);
     });
   };
 
   const uploadPhotosToStorage = async (): Promise<string[]> => {
-    if (photos.length === 0 || !isSupabaseConfigured()) {
-      return [];
+    if (photos.length === 0) return [];
+
+    const finalUrls: string[] = [];
+    const newFiles = photos.filter((p) => Boolean(p.file));
+
+    if (newFiles.length === 0 || !isSupabaseConfigured()) {
+      return photos
+        .map((p) => p.existingUrl)
+        .filter((url): url is string => Boolean(url));
     }
 
     const supabase = createClient();
@@ -105,8 +141,13 @@ export function ListingForm({ categories }: ListingFormProps) {
       throw new Error('You must be signed in to upload photos.');
     }
 
-    const uploadedUrls: string[] = [];
     for (const item of photos) {
+      if (item.existingUrl) {
+        finalUrls.push(item.existingUrl);
+        continue;
+      }
+      if (!item.file) continue;
+
       const ext = item.file.name.split('.').pop()?.toLowerCase() || 'jpg';
       const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
@@ -122,10 +163,10 @@ export function ListingForm({ categories }: ListingFormProps) {
         .from(STORAGE_BUCKET_PRODUCT_IMAGES)
         .getPublicUrl(filePath);
 
-      uploadedUrls.push(publicUrlData.publicUrl);
+      finalUrls.push(publicUrlData.publicUrl);
     }
 
-    return uploadedUrls;
+    return finalUrls;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -143,14 +184,18 @@ export function ListingForm({ categories }: ListingFormProps) {
           uploadedUrls = await uploadPhotosToStorage();
         }
 
-        const result = await createListing({
+        const payload = {
           title,
           category_id: categoryId,
           price: parsedPrice,
           price_negotiable: priceNegotiable,
           description: description.trim() || undefined,
           photos: uploadedUrls,
-        });
+        };
+
+        const result = initialListing
+          ? await updateListing(initialListing.id, payload)
+          : await createListing(payload);
 
         if (!result.success) {
           setErrorMessage(result.error);
@@ -363,7 +408,15 @@ export function ListingForm({ categories }: ListingFormProps) {
           disabled={busy}
           className="px-5 py-2 text-xs font-medium text-white bg-ug-navy hover:bg-ug-navy-light rounded-lg transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
         >
-          {isUploading ? 'Uploading photos...' : isPending ? 'Publishing...' : 'Publish Listing'}
+          {isUploading
+            ? 'Uploading photos...'
+            : isPending
+              ? isEditing
+                ? 'Saving...'
+                : 'Publishing...'
+              : isEditing
+                ? 'Save Changes'
+                : 'Publish Listing'}
         </button>
       </div>
     </form>
