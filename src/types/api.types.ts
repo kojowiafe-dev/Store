@@ -27,6 +27,7 @@ export interface PublicListingCardDTO {
   seller_store_name: string;
   storefront_slug: string;
   hall_name: string;
+  whatsapp_number: string;
   primary_image_path: string | null;
   created_at: string;
 }

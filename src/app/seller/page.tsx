@@ -9,20 +9,41 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  Settings,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
+import { PILOT_HALL, isSupabaseConfigured } from '@/lib/constants';
 import { SellerListingItem } from '@/components/seller/SellerListingItem';
+import { SignOutButton } from '@/components/seller/SignOutButton';
 import { ShareButton } from '@/components/ui/ShareButton';
+import type { ListingAvailabilityStatus } from '@/types/database.types';
+
+interface DashboardListing {
+  id: string;
+  slug: string;
+  title: string;
+  price: number | null;
+  currency: string;
+  price_negotiable: boolean;
+  availability_status: ListingAvailabilityStatus;
+  confirm_before: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+interface DashboardSeller {
+  id: string;
+  store_name: string;
+  storefront_slug: string;
+  is_approved: boolean;
+  halls: { name: string } | null;
+}
 
 export default async function SellerDashboardPage() {
-  let user = null;
-  let seller = null;
-  let listings: any[] = [];
+  let seller: DashboardSeller | null = null;
+  let listings: DashboardListing[] = [];
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (supabaseUrl && supabaseAnonKey) {
+  if (isSupabaseConfigured()) {
     const supabase = await createClient();
     const {
       data: { user: authUser },
@@ -31,8 +52,6 @@ export default async function SellerDashboardPage() {
     if (!authUser) {
       redirect('/seller/login');
     }
-
-    user = authUser;
 
     const { data: sellerProfile } = await supabase
       .from('seller_profiles')
@@ -45,52 +64,54 @@ export default async function SellerDashboardPage() {
           name
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', authUser.id)
       .maybeSingle();
 
-    seller = sellerProfile;
+    seller = sellerProfile as DashboardSeller | null;
 
     if (seller) {
       const { data: listingData } = await supabase
         .from('listings')
-        .select('*')
+        .select(
+          'id, slug, title, price, currency, price_negotiable, availability_status, confirm_before, expires_at, created_at'
+        )
         .eq('seller_id', seller.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      listings = listingData ?? [];
+      listings = (listingData ?? []) as DashboardListing[];
     }
   } else {
     // Demo / offline fallback mode for local evaluation
     seller = {
-      id: 's1000000-0000-0000-0000-000000000001',
+      id: 'bbbbbbbb-0000-0000-0000-000000000001',
       store_name: "Ama's Kitchen (Demo)",
       storefront_slug: 'amas-kitchen',
       is_approved: true,
-      halls: { name: 'Jean Nelson Aka Hall' },
+      halls: { name: PILOT_HALL.name },
     };
 
     listings = [
       {
-        id: 'l1000000-0000-0000-0000-000000000001',
+        id: 'cccccccc-0000-0000-0000-000000000001',
         slug: 'hot-jollof-chicken-shito-8f1',
         title: 'Hot Jollof Rice with Grilled Chicken & Shito',
         price: 35.0,
         currency: 'GHS',
         price_negotiable: false,
-        availability_status: 'AVAILABLE' as const,
+        availability_status: 'AVAILABLE',
         confirm_before: new Date(Date.now() + 10 * 3600 * 1000).toISOString(),
         expires_at: new Date(Date.now() + 12 * 3600 * 1000).toISOString(),
         created_at: new Date(Date.now() - 3600 * 1000).toISOString(),
       },
       {
-        id: 'l1000000-0000-0000-0000-000000000002',
+        id: 'cccccccc-0000-0000-0000-000000000002',
         slug: 'fried-plantain-beans-redred-a4c',
         title: 'Red Red (Beans Stew with Fried Sweet Plantain & Gari)',
         price: 25.0,
         currency: 'GHS',
         price_negotiable: false,
-        availability_status: 'NEEDS_CONFIRMATION' as const,
+        availability_status: 'NEEDS_CONFIRMATION',
         confirm_before: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
         expires_at: new Date(Date.now() + 2 * 3600 * 1000).toISOString(),
         created_at: new Date(Date.now() - 10 * 3600 * 1000).toISOString(),
@@ -116,7 +137,7 @@ export default async function SellerDashboardPage() {
     );
   }
 
-  const hallName = (seller.halls as any)?.name ?? 'Jean Nelson Aka Hall';
+  const hallName = seller.halls?.name ?? PILOT_HALL.name;
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-3xl mx-auto">
@@ -141,7 +162,7 @@ export default async function SellerDashboardPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2.5 text-xs text-neutral-400 font-normal">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-neutral-400 font-normal">
               <span className="inline-flex items-center gap-1 text-neutral-500">
                 <MapPin className="w-3 h-3 text-neutral-400" />
                 {hallName}
@@ -155,6 +176,16 @@ export default async function SellerDashboardPage() {
                 <span>View Public Store</span>
                 <ExternalLink className="w-3 h-3" />
               </Link>
+              <span>&middot;</span>
+              <Link
+                href="/seller/profile"
+                className="text-neutral-500 hover:text-ug-navy font-normal inline-flex items-center gap-1 transition-colors"
+              >
+                <Settings className="w-3 h-3" />
+                <span>Settings</span>
+              </Link>
+              <span>&middot;</span>
+              <SignOutButton />
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/constants';
 import type { Database } from '@/types/database.types';
 
 export type CategoryRow = Database['public']['Tables']['categories']['Row'];
@@ -6,7 +7,7 @@ export type CategoryRow = Database['public']['Tables']['categories']['Row'];
 // Hardcoded fallback categories for offline/unseeded environments
 export const FALLBACK_CATEGORIES: CategoryRow[] = [
   {
-    id: 'c1000000-0000-0000-0000-000000000001',
+    id: '10000000-0000-0000-0000-000000000001',
     name: 'Food & Snacks',
     slug: 'food-snacks',
     icon: 'food-snacks',
@@ -81,7 +82,7 @@ export const FALLBACK_CATEGORIES: CategoryRow[] = [
 
 export async function getActiveCategories(): Promise<CategoryRow[]> {
   try {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!isSupabaseConfigured()) {
       return FALLBACK_CATEGORIES;
     }
 

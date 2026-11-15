@@ -14,9 +14,10 @@ interface ListingCardProps {
   whatsappNumber?: string;
 }
 
-export function ListingCard({ listing, whatsappNumber = '+233501234567' }: ListingCardProps) {
+export function ListingCard({ listing, whatsappNumber }: ListingCardProps) {
+  const resolvedWhatsapp = whatsappNumber ?? listing.whatsapp_number;
   const whatsappUrl = buildWhatsAppUrl({
-    whatsappNumber,
+    whatsappNumber: resolvedWhatsapp,
     productTitle: listing.title,
     storeName: listing.seller_store_name,
   });
@@ -75,16 +76,16 @@ export function ListingCard({ listing, whatsappNumber = '+233501234567' }: Listi
 
         {/* Price */}
         <div className="mt-1.5 mb-2.5">
-          <p className="text-sm sm:text-base font-bold text-emerald-700 tracking-tight">
+          <p className="text-sm sm:text-[15px] font-semibold text-emerald-700 tracking-tight">
             {formatPrice(listing.price, listing.currency, listing.price_negotiable)}
           </p>
         </div>
 
         {/* Seller Info & WhatsApp CTA */}
-        <div className="mt-auto pt-2 border-t border-neutral-100 flex flex-col gap-1.5 sm:gap-2">
+        <div className="mt-auto pt-2 border-t border-neutral-100 flex items-center justify-between gap-2 min-w-0">
           <Link
             href={`/store/${listing.storefront_slug}`}
-            className="text-[10px] sm:text-[11px] text-neutral-500 hover:text-ug-navy font-normal truncate transition-colors"
+            className="text-[11px] text-neutral-500 hover:text-ug-navy font-normal truncate flex-1 min-w-0 transition-colors"
           >
             {listing.seller_store_name}
           </Link>
@@ -94,7 +95,7 @@ export function ListingCard({ listing, whatsappNumber = '+233501234567' }: Listi
             whatsappUrl={whatsappUrl}
             size="sm"
             label="Chat"
-            className="w-full justify-center active:scale-[0.98] transition-transform"
+            className="shrink-0 active:scale-[0.98] transition-transform"
           />
         </div>
       </div>

@@ -43,7 +43,7 @@ export async function submitReport(
     }
 
     return { success: true, data: { id: report.id } };
-  } catch (err: any) {
+  } catch {
     return { success: true, data: { id: `mock-report-${Date.now()}` } };
   }
 }

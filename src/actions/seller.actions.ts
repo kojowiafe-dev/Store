@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { getErrorMessage } from '@/lib/constants';
 import {
   CreateSellerProfileSchema,
   UpdateSellerProfileSchema,
@@ -101,8 +102,8 @@ export async function createSellerProfile(
       success: true,
       data: { id: seller.id, storefront_slug: seller.storefront_slug },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'An unexpected error occurred.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'An unexpected error occurred.') };
   }
 }
 
@@ -158,8 +159,8 @@ export async function updateSellerProfile(
     revalidatePath('/seller/profile');
 
     return { success: true, data: { updated: true } };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'An unexpected error occurred.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'An unexpected error occurred.') };
   }
 }
 

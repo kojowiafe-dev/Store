@@ -1,6 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import {
   ArrowLeft,
@@ -15,7 +14,7 @@ import { getListingBySlug } from '@/repositories/listing.repository';
 import { formatPrice, formatRelativeDate } from '@/lib/utils';
 import { buildWhatsAppUrl } from '@/lib/whatsapp';
 import { StatusBadge } from '@/components/ui/Badge';
-import { CategoryIcon } from '@/components/ui/CategoryIcon';
+import { ListingImageGallery } from '@/components/listings/ListingImageGallery';
 import { WhatsAppContactButton } from '@/components/listings/WhatsAppContactButton';
 import { ReportModal } from '@/components/listings/ReportModal';
 import { ShareButton } from '@/components/ui/ShareButton';
@@ -62,28 +61,15 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
 
       <div className="bg-white border border-neutral-200/80 rounded-2xl overflow-hidden shadow-2xs">
         {/* Gallery / Image Showcase */}
-        <div className="relative aspect-4/3 sm:aspect-16/10 bg-[#F7F7F7] w-full overflow-hidden flex items-center justify-center">
-          {listing.images && listing.images.length > 0 ? (
-            <Image
-              src={listing.images[0].storage_path}
-              alt={listing.title}
-              fill
-              priority
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center text-neutral-400 p-6">
-              <div className="w-12 h-12 rounded-full bg-white border border-neutral-200/60 flex items-center justify-center text-neutral-400 mb-2 shadow-2xs">
-                <CategoryIcon slug={listing.category_slug} className="w-5 h-5 text-neutral-500" />
-              </div>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-400">
-                {listing.category_name}
-              </span>
-            </div>
-          )}
-
+        <div className="relative p-3 sm:p-4 bg-white">
+          <ListingImageGallery
+            images={listing.images ?? []}
+            title={listing.title}
+            categorySlug={listing.category_slug}
+            categoryName={listing.category_name}
+          />
           {/* Availability badge floating on media */}
-          <div className="absolute top-3 left-3 z-10">
+          <div className="absolute top-6 left-6 z-10">
             <StatusBadge status={listing.availability_status} />
           </div>
         </div>

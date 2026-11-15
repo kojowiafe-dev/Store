@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Share2, Check, Copy, MessageCircle } from 'lucide-react';
 
 interface ShareButtonProps {
@@ -22,6 +22,30 @@ export function ShareButton({
 }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showMenu) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showMenu]);
 
   const getShareUrl = () => {
     if (url) {
@@ -85,7 +109,7 @@ export function ShareButton({
   };
 
   return (
-    <div className="relative inline-block text-left">
+    <div ref={containerRef} className="relative inline-block text-left">
       <button
         type="button"
         onClick={handleNativeShare}

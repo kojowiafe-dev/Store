@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Clock } from 'lucide-react';
@@ -54,7 +54,9 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       </div>
 
       {/* Category Pills Navigation */}
-      <CategoryChips categories={categories} activeCategory={category.slug} />
+      <Suspense fallback={<div className="h-9 bg-neutral-100 rounded-full w-full animate-pulse" />}>
+        <CategoryChips categories={categories} activeCategory={category.slug} />
+      </Suspense>
 
       {/* Grid */}
       <div className="space-y-4">

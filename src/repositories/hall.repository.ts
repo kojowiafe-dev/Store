@@ -1,50 +1,53 @@
 import { createClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured, PILOT_HALL } from '@/lib/constants';
 import type { Database } from '@/types/database.types';
 
 export type HallRow = Database['public']['Tables']['halls']['Row'];
 
+const UNIVERSITY_ID = '00000000-0000-0000-0000-000000000001';
+
 export const FALLBACK_HALLS: HallRow[] = [
   {
-    id: 'h1000000-0000-0000-0000-000000000001',
-    university_id: 'u1000000-0000-0000-0000-000000000001',
-    name: 'Jean Nelson Aka Hall',
-    slug: 'jean-nelson-aka-hall',
+    id: PILOT_HALL.id,
+    university_id: UNIVERSITY_ID,
+    name: PILOT_HALL.name,
+    slug: PILOT_HALL.slug,
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'h1000000-0000-0000-0000-000000000002',
-    university_id: 'u1000000-0000-0000-0000-000000000001',
+    id: '00000000-0000-0000-0000-000000000011',
+    university_id: UNIVERSITY_ID,
     name: 'Commonwealth Hall',
-    slug: 'commonwealth-hall',
+    slug: 'commonwealth',
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'h1000000-0000-0000-0000-000000000003',
-    university_id: 'u1000000-0000-0000-0000-000000000001',
+    id: '00000000-0000-0000-0000-000000000012',
+    university_id: UNIVERSITY_ID,
     name: 'Volta Hall',
-    slug: 'volta-hall',
+    slug: 'volta',
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'h1000000-0000-0000-0000-000000000004',
-    university_id: 'u1000000-0000-0000-0000-000000000001',
+    id: '00000000-0000-0000-0000-000000000013',
+    university_id: UNIVERSITY_ID,
     name: 'Legon Hall',
-    slug: 'legon-hall',
+    slug: 'legon',
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'h1000000-0000-0000-0000-000000000005',
-    university_id: 'u1000000-0000-0000-0000-000000000001',
-    name: 'Mensah Sarbah Hall',
-    slug: 'mensah-sarbah-hall',
+    id: '00000000-0000-0000-0000-000000000014',
+    university_id: UNIVERSITY_ID,
+    name: 'Akuafo Hall',
+    slug: 'akuafo',
     is_active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -53,7 +56,7 @@ export const FALLBACK_HALLS: HallRow[] = [
 
 export async function getActiveHalls(): Promise<HallRow[]> {
   try {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!isSupabaseConfigured()) {
       return FALLBACK_HALLS;
     }
 

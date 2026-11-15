@@ -1,9 +1,17 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Clock, UploadCloud } from 'lucide-react';
+import { AlertCircle, Clock, UploadCloud, X, ImagePlus } from 'lucide-react';
 import { createListing } from '@/actions/listing.actions';
+import { createClient } from '@/lib/supabase/client';
+import {
+  MAX_LISTING_PHOTOS,
+  MAX_PHOTO_SIZE_BYTES,
+  STORAGE_BUCKET_PRODUCT_IMAGES,
+  getErrorMessage,
+  isSupabaseConfigured,
+} from '@/lib/constants';
 import type { Database } from '@/types/database.types';
 
 type CategoryRow = Database['public']['Tables']['categories']['Row'];
@@ -12,8 +20,15 @@ interface ListingFormProps {
   categories: CategoryRow[];
 }
 
+interface SelectedPhoto {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
 export function ListingForm({ categories }: ListingFormProps) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
 
   const [title, setTitle] = useState('');
@@ -21,10 +36,97 @@ export function ListingForm({ categories }: ListingFormProps) {
   const [price, setPrice] = useState('');
   const [priceNegotiable, setPriceNegotiable] = useState(false);
   const [description, setDescription] = useState('');
+  const [photos, setPhotos] = useState<SelectedPhoto[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
+  useEffect(() => {
+    return () => {
+      photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    };
+  }, [photos]);
+
   const selectedCategory = categories.find((c) => c.id === categoryId);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    setErrorMessage(null);
+    const remainingSlots = MAX_LISTING_PHOTOS - photos.length;
+    if (remainingSlots <= 0) {
+      setErrorMessage(`You can upload up to ${MAX_LISTING_PHOTOS} photos per listing.`);
+      return;
+    }
+
+    const validToAdd: SelectedPhoto[] = [];
+    for (const file of files.slice(0, remainingSlots)) {
+      if (!file.type.startsWith('image/')) {
+        setErrorMessage('Only image files (JPG, PNG, WebP) are allowed.');
+        continue;
+      }
+      if (file.size > MAX_PHOTO_SIZE_BYTES) {
+        setErrorMessage(`"${file.name}" exceeds the 2 MB size limit.`);
+        continue;
+      }
+      validToAdd.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+
+    if (validToAdd.length > 0) {
+      setPhotos((prev) => [...prev, ...validToAdd]);
+    }
+    e.target.value = '';
+  };
+
+  const removePhoto = (id: string) => {
+    setPhotos((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
+  const uploadPhotosToStorage = async (): Promise<string[]> => {
+    if (photos.length === 0 || !isSupabaseConfigured()) {
+      return [];
+    }
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error('You must be signed in to upload photos.');
+    }
+
+    const uploadedUrls: string[] = [];
+    for (const item of photos) {
+      const ext = item.file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(STORAGE_BUCKET_PRODUCT_IMAGES)
+        .upload(filePath, item.file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) {
+        throw new Error(`Failed to upload "${item.file.name}": ${uploadError.message}`);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(STORAGE_BUCKET_PRODUCT_IMAGES)
+        .getPublicUrl(filePath);
+
+      uploadedUrls.push(publicUrlData.publicUrl);
+    }
+
+    return uploadedUrls;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,27 +136,41 @@ export function ListingForm({ categories }: ListingFormProps) {
     const parsedPrice = price.trim() === '' ? null : parseFloat(price);
 
     startTransition(async () => {
-      const result = await createListing({
-        title,
-        category_id: categoryId,
-        price: parsedPrice,
-        price_negotiable: priceNegotiable,
-        description: description.trim() || undefined,
-        photos: [],
-      });
-
-      if (!result.success) {
-        setErrorMessage(result.error);
-        if (result.fieldErrors) {
-          setFieldErrors(result.fieldErrors);
+      try {
+        let uploadedUrls: string[] = [];
+        if (photos.length > 0) {
+          setIsUploading(true);
+          uploadedUrls = await uploadPhotosToStorage();
         }
-        return;
-      }
 
-      router.push('/seller');
-      router.refresh();
+        const result = await createListing({
+          title,
+          category_id: categoryId,
+          price: parsedPrice,
+          price_negotiable: priceNegotiable,
+          description: description.trim() || undefined,
+          photos: uploadedUrls,
+        });
+
+        if (!result.success) {
+          setErrorMessage(result.error);
+          if (result.fieldErrors) {
+            setFieldErrors(result.fieldErrors);
+          }
+          return;
+        }
+
+        router.push('/seller');
+        router.refresh();
+      } catch (err: unknown) {
+        setErrorMessage(getErrorMessage(err, 'Failed to publish listing.'));
+      } finally {
+        setIsUploading(false);
+      }
     });
   };
+
+  const busy = isPending || isUploading;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -162,13 +278,76 @@ export function ListingForm({ categories }: ListingFormProps) {
         </div>
       </div>
 
-      {/* Photo Upload Info */}
-      <div className="p-4 border border-dashed border-neutral-200 rounded-xl bg-neutral-50/50 flex flex-col items-center justify-center text-center">
-        <UploadCloud className="w-5 h-5 text-neutral-400 mb-1.5" strokeWidth={1.5} />
-        <span className="text-xs font-medium text-neutral-700">Product Photos</span>
-        <span className="text-[11px] text-neutral-400 max-w-xs mt-0.5 font-normal">
-          Photos will be stored on Supabase Storage (Max 3 photos, 2 MB each).
-        </span>
+      {/* Interactive Photo Uploader */}
+      <div>
+        <label className="block text-xs font-medium text-neutral-700 mb-1.5">
+          Product Photos (Up to {MAX_LISTING_PHOTOS})
+        </label>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
+        {photos.length > 0 && (
+          <div className="grid grid-cols-3 gap-2.5 mb-2.5">
+            {photos.map((photo, index) => (
+              <div
+                key={photo.id}
+                className="relative aspect-square rounded-xl overflow-hidden border border-neutral-200/90 bg-neutral-50"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photo.previewUrl}
+                  alt={`Preview ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                {index === 0 && (
+                  <span className="absolute bottom-1.5 left-1.5 text-[9px] font-medium bg-ug-navy/85 text-white px-1.5 py-0.5 rounded-md">
+                    Cover
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removePhoto(photo.id)}
+                  aria-label="Remove photo"
+                  className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white/90 text-neutral-700 hover:text-rose-600 flex items-center justify-center shadow-xs cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+
+            {photos.length < MAX_LISTING_PHOTOS && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="aspect-square rounded-xl border border-dashed border-neutral-300 bg-neutral-50/50 hover:bg-neutral-50 flex flex-col items-center justify-center text-neutral-500 transition-colors cursor-pointer"
+              >
+                <ImagePlus className="w-5 h-5 mb-1 text-neutral-400" strokeWidth={1.5} />
+                <span className="text-[11px] font-normal">Add Photo</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {photos.length === 0 && (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full p-4 border border-dashed border-neutral-200 hover:border-ug-navy/40 rounded-xl bg-neutral-50/50 hover:bg-neutral-50 flex flex-col items-center justify-center text-center transition-colors cursor-pointer"
+          >
+            <UploadCloud className="w-5 h-5 text-neutral-400 mb-1.5" strokeWidth={1.5} />
+            <span className="text-xs font-medium text-neutral-700">Tap to add product photos</span>
+            <span className="text-[11px] text-neutral-400 max-w-xs mt-0.5 font-normal">
+              JPG, PNG, or WebP &middot; Max {MAX_LISTING_PHOTOS} photos, 2 MB each
+            </span>
+          </button>
+        )}
       </div>
 
       <div className="pt-2 flex items-center justify-end gap-2.5">
@@ -181,10 +360,10 @@ export function ListingForm({ categories }: ListingFormProps) {
         </button>
         <button
           type="submit"
-          disabled={isPending}
+          disabled={busy}
           className="px-5 py-2 text-xs font-medium text-white bg-ug-navy hover:bg-ug-navy-light rounded-lg transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
         >
-          {isPending ? 'Publishing...' : 'Publish Listing'}
+          {isUploading ? 'Uploading photos...' : isPending ? 'Publishing...' : 'Publish Listing'}
         </button>
       </div>
     </form>

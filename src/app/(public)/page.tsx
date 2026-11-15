@@ -5,6 +5,7 @@ import { getActiveCategories } from '@/repositories/category.repository';
 import { getMarketplaceListings } from '@/repositories/listing.repository';
 import { SearchBar } from '@/components/search/SearchBar';
 import { CategoryChips } from '@/components/search/CategoryChips';
+import { SortSelect } from '@/components/search/SortSelect';
 import { ListingGrid } from '@/components/listings/ListingGrid';
 
 interface HomePageProps {
@@ -85,9 +86,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           )}
         </div>
 
-        <div className="text-[11px] sm:text-xs text-neutral-400 flex items-center gap-1 font-normal">
-          <MapPin className="w-3 h-3 text-neutral-400" />
-          <span>Jean Nelson AKA</span>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex text-xs text-neutral-400 items-center gap-1 font-normal">
+            <MapPin className="w-3 h-3 text-neutral-400" />
+            <span>Jean Nelson AKA</span>
+          </div>
+          <Suspense fallback={<div className="h-7 w-28 bg-neutral-100 rounded-lg animate-pulse" />}>
+            <SortSelect currentSort={sort} />
+          </Suspense>
         </div>
       </div>
 

@@ -3,27 +3,41 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getErrorMessage } from '@/lib/constants';
 import type { ActionResult } from '@/types/api.types';
 
-export async function approveSeller(sellerProfileId: string): Promise<ActionResult<{ approved: boolean }>> {
+async function verifyAdminUser(): Promise<
+  { ok: true; userId: string } | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { ok: false, error: 'Unauthorized.' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.is_admin) {
+    return { ok: false, error: 'Administrator access required.' };
+  }
+
+  return { ok: true, userId: user.id };
+}
+
+export async function approveSeller(
+  sellerProfileId: string
+): Promise<ActionResult<{ approved: boolean }>> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) return { success: false, error: 'Unauthorized.' };
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.is_admin) {
-      return { success: false, error: 'Administrator access required.' };
-    }
+    const auth = await verifyAdminUser();
+    if (!auth.ok) return { success: false, error: auth.error };
 
     const adminClient = createAdminClient();
     const now = new Date().toISOString();
@@ -33,7 +47,7 @@ export async function approveSeller(sellerProfileId: string): Promise<ActionResu
       .update({
         is_approved: true,
         approved_at: now,
-        approved_by: user.id,
+        approved_by: auth.userId,
         updated_at: now,
       })
       .eq('id', sellerProfileId);
@@ -44,8 +58,8 @@ export async function approveSeller(sellerProfileId: string): Promise<ActionResu
     revalidatePath('/');
 
     return { success: true, data: { approved: true } };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'Failed to approve seller.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'Failed to approve seller.') };
   }
 }
 
@@ -54,23 +68,8 @@ export async function takedownListing(
   reason: string
 ): Promise<ActionResult<{ removed: boolean }>> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) return { success: false, error: 'Unauthorized.' };
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile?.is_admin) {
-      return { success: false, error: 'Administrator access required.' };
-    }
+    const auth = await verifyAdminUser();
+    if (!auth.ok) return { success: false, error: auth.error };
 
     const adminClient = createAdminClient();
     const now = new Date().toISOString();
@@ -88,15 +87,14 @@ export async function takedownListing(
 
     await adminClient.from('listing_events').insert({
       listing_id: listingId,
-      actor_id: user.id,
+      actor_id: auth.userId,
       event_type: 'admin_takedown',
       payload: { reason },
     });
 
     revalidatePath('/');
     return { success: true, data: { removed: true } };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'Failed to takedown listing.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'Failed to takedown listing.') };
   }
 }
-

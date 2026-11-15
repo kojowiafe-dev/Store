@@ -2,8 +2,27 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import {
+  DEFAULT_CURRENCY,
+  MAX_LISTING_PHOTOS,
+  getErrorMessage,
+  isSupabaseConfigured,
+} from '@/lib/constants';
 import { CreateListingSchema, type CreateListingInput } from '@/schemas/listing.schema';
 import type { ActionResult } from '@/types/api.types';
+
+interface CategoryTiming {
+  default_expiry_hours: number;
+  default_confirm_lead_hours: number;
+}
+
+interface OwnedListingRow {
+  id: string;
+  slug: string;
+  expires_at: string | null;
+  seller_profiles: { user_id: string; storefront_slug: string } | null;
+  categories: CategoryTiming | null;
+}
 
 function generateSlug(title: string): string {
   const base = title
@@ -15,9 +34,74 @@ function generateSlug(title: string): string {
   return `${base}-${randomSuffix}`;
 }
 
-export async function recordContactTap(listingId: string): Promise<ActionResult<{ recorded: boolean }>> {
+function computeExpiryWindow(category: CategoryTiming | null, now = new Date()) {
+  const expiryHours = category?.default_expiry_hours ?? 168;
+  const leadHours = category?.default_confirm_lead_hours ?? 24;
+  const expiresAt = new Date(now.getTime() + expiryHours * 3600 * 1000);
+  const confirmBefore = new Date(now.getTime() + (expiryHours - leadHours) * 3600 * 1000);
+  return {
+    expiresAt: expiresAt.toISOString(),
+    confirmBefore: confirmBefore.toISOString(),
+  };
+}
+
+function revalidateListingPaths(listingSlug: string, storefrontSlug?: string | null) {
+  revalidatePath('/');
+  revalidatePath('/seller');
+  if (storefrontSlug) revalidatePath(`/store/${storefrontSlug}`);
+  revalidatePath(`/listings/${listingSlug}`);
+}
+
+async function getAuthenticatedOwnedListing(listingId: string): Promise<
+  | {
+      ok: true;
+      supabase: Awaited<ReturnType<typeof createClient>>;
+      userId: string;
+      listing: OwnedListingRow;
+    }
+  | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { ok: false, error: 'Unauthorized.' };
+  }
+
+  const { data: listing, error: listingError } = await supabase
+    .from('listings')
+    .select(
+      `
+      id,
+      slug,
+      expires_at,
+      seller_profiles!inner(user_id, storefront_slug),
+      categories(default_expiry_hours, default_confirm_lead_hours)
+    `
+    )
+    .eq('id', listingId)
+    .single();
+
+  if (listingError || !listing) {
+    return { ok: false, error: 'Listing not found.' };
+  }
+
+  const typedListing = listing as unknown as OwnedListingRow;
+  if (typedListing.seller_profiles?.user_id !== user.id) {
+    return { ok: false, error: 'You are not authorized to update this listing.' };
+  }
+
+  return { ok: true, supabase, userId: user.id, listing: typedListing };
+}
+
+export async function recordContactTap(
+  listingId: string
+): Promise<ActionResult<{ recorded: boolean }>> {
   try {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!isSupabaseConfigured()) {
       return { success: true, data: { recorded: true } };
     }
 
@@ -30,8 +114,7 @@ export async function recordContactTap(listingId: string): Promise<ActionResult<
     });
 
     return { success: true, data: { recorded: true } };
-  } catch (err: any) {
-    // Non-blocking telemetry
+  } catch {
     return { success: true, data: { recorded: false } };
   }
 }
@@ -68,7 +151,10 @@ export async function createListing(
       .single();
 
     if (sellerError || !seller) {
-      return { success: false, error: 'Seller profile not found. Please complete seller registration.' };
+      return {
+        success: false,
+        error: 'Seller profile not found. Please complete seller registration.',
+      };
     }
 
     if (!seller.is_approved) {
@@ -81,13 +167,7 @@ export async function createListing(
       .eq('id', input.category_id)
       .single();
 
-    const expiryHours = category?.default_expiry_hours ?? 168; // default 7 days
-    const leadHours = category?.default_confirm_lead_hours ?? 24; // default 24h lead
-
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + expiryHours * 3600 * 1000);
-    const confirmBefore = new Date(now.getTime() + (expiryHours - leadHours) * 3600 * 1000);
-
+    const { expiresAt, confirmBefore } = computeExpiryWindow(category);
     const slug = generateSlug(input.title);
 
     const { data: listing, error: insertError } = await supabase
@@ -100,10 +180,10 @@ export async function createListing(
         description: input.description ?? null,
         price: input.price ?? null,
         price_negotiable: input.price_negotiable,
-        currency: 'GHS',
+        currency: DEFAULT_CURRENCY,
         availability_status: 'AVAILABLE',
-        confirm_before: confirmBefore.toISOString(),
-        expires_at: expiresAt.toISOString(),
+        confirm_before: confirmBefore,
+        expires_at: expiresAt,
       })
       .select('id, slug')
       .single();
@@ -113,7 +193,7 @@ export async function createListing(
     }
 
     if (input.photos && input.photos.length > 0) {
-      const imagesToInsert = input.photos.slice(0, 3).map((path, idx) => ({
+      const imagesToInsert = input.photos.slice(0, MAX_LISTING_PHOTOS).map((path, idx) => ({
         listing_id: listing.id,
         storage_path: path,
         display_order: idx + 1,
@@ -127,70 +207,37 @@ export async function createListing(
       listing_id: listing.id,
       actor_id: user.id,
       event_type: 'created',
-      payload: { title: input.title, price: input.price },
+      payload: { title: input.title, price: input.price ?? null },
     });
 
-    revalidatePath('/');
-    revalidatePath(`/store/${seller.storefront_slug}`);
-    revalidatePath(`/listings/${listing.slug}`);
+    revalidateListingPaths(listing.slug, seller.storefront_slug);
 
     return {
       success: true,
       data: { id: listing.id, slug: listing.slug },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'An unexpected error occurred.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'An unexpected error occurred.') };
   }
 }
 
-export async function confirmAvailability(listingId: string): Promise<ActionResult<{ confirmed: boolean }>> {
+export async function confirmAvailability(
+  listingId: string
+): Promise<ActionResult<{ confirmed: boolean }>> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedOwnedListing(listingId);
+    if (!auth.ok) return { success: false, error: auth.error };
 
-    if (authError || !user) {
-      return { success: false, error: 'Unauthorized.' };
-    }
-
-    const { data: listing, error: listingError } = await supabase
-      .from('listings')
-      .select(`
-        id,
-        slug,
-        category_id,
-        seller_id,
-        seller_profiles!inner(user_id, storefront_slug),
-        categories(default_expiry_hours, default_confirm_lead_hours)
-      `)
-      .eq('id', listingId)
-      .single();
-
-    if (listingError || !listing) {
-      return { success: false, error: 'Listing not found.' };
-    }
-
-    const sellerUser = (listing.seller_profiles as any)?.user_id;
-    if (sellerUser !== user.id) {
-      return { success: false, error: 'You are not authorized to update this listing.' };
-    }
-
-    const cat = listing.categories as any;
-    const expiryHours = cat?.default_expiry_hours ?? 168;
-    const leadHours = cat?.default_confirm_lead_hours ?? 24;
-
+    const { supabase, userId, listing } = auth;
     const now = new Date();
-    const newExpiresAt = new Date(now.getTime() + expiryHours * 3600 * 1000);
-    const newConfirmBefore = new Date(now.getTime() + (expiryHours - leadHours) * 3600 * 1000);
+    const { expiresAt, confirmBefore } = computeExpiryWindow(listing.categories, now);
 
     const { error: updateError } = await supabase
       .from('listings')
       .update({
         availability_status: 'AVAILABLE',
-        confirm_before: newConfirmBefore.toISOString(),
-        expires_at: newExpiresAt.toISOString(),
+        confirm_before: confirmBefore,
+        expires_at: expiresAt,
         updated_at: now.toISOString(),
       })
       .eq('id', listingId);
@@ -201,19 +248,16 @@ export async function confirmAvailability(listingId: string): Promise<ActionResu
 
     await supabase.from('listing_events').insert({
       listing_id: listingId,
-      actor_id: user.id,
+      actor_id: userId,
       event_type: 'confirmed_available',
-      payload: { new_expires_at: newExpiresAt.toISOString() },
+      payload: { new_expires_at: expiresAt },
     });
 
-    const storefrontSlug = (listing.seller_profiles as any)?.storefront_slug;
-    revalidatePath('/');
-    if (storefrontSlug) revalidatePath(`/store/${storefrontSlug}`);
-    revalidatePath(`/listings/${listing.slug}`);
+    revalidateListingPaths(listing.slug, listing.seller_profiles?.storefront_slug);
 
     return { success: true, data: { confirmed: true } };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'Failed to confirm availability.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'Failed to confirm availability.') };
   }
 }
 
@@ -227,51 +271,27 @@ export async function pauseListing(listingId: string): Promise<ActionResult<{ st
 
 export async function resumeListing(listingId: string): Promise<ActionResult<{ status: string }>> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedOwnedListing(listingId);
+    if (!auth.ok) return { success: false, error: auth.error };
 
-    if (authError || !user) return { success: false, error: 'Unauthorized.' };
-
-    const { data: listing, error: listingError } = await supabase
-      .from('listings')
-      .select(`
-        id,
-        slug,
-        expires_at,
-        category_id,
-        seller_profiles!inner(user_id, storefront_slug),
-        categories(default_expiry_hours, default_confirm_lead_hours)
-      `)
-      .eq('id', listingId)
-      .single();
-
-    if (listingError || !listing) return { success: false, error: 'Listing not found.' };
-
-    const sellerUser = (listing.seller_profiles as any)?.user_id;
-    if (sellerUser !== user.id) {
-      return { success: false, error: 'Unauthorized.' };
-    }
-
+    const { supabase, userId, listing } = auth;
     const now = new Date();
     const isPastExpiry = !listing.expires_at || new Date(listing.expires_at) <= now;
 
-    const cat = listing.categories as any;
-    const expiryHours = cat?.default_expiry_hours ?? 168;
-    const leadHours = cat?.default_confirm_lead_hours ?? 24;
-
-    const updatePayload: Record<string, any> = {
+    const updatePayload: {
+      availability_status: 'AVAILABLE';
+      updated_at: string;
+      expires_at?: string;
+      confirm_before?: string;
+    } = {
       availability_status: 'AVAILABLE',
       updated_at: now.toISOString(),
     };
 
     if (isPastExpiry) {
-      updatePayload.expires_at = new Date(now.getTime() + expiryHours * 3600 * 1000).toISOString();
-      updatePayload.confirm_before = new Date(
-        now.getTime() + (expiryHours - leadHours) * 3600 * 1000
-      ).toISOString();
+      const { expiresAt, confirmBefore } = computeExpiryWindow(listing.categories, now);
+      updatePayload.expires_at = expiresAt;
+      updatePayload.confirm_before = confirmBefore;
     }
 
     const { error: updateError } = await supabase
@@ -283,44 +303,29 @@ export async function resumeListing(listingId: string): Promise<ActionResult<{ s
 
     await supabase.from('listing_events').insert({
       listing_id: listingId,
-      actor_id: user.id,
+      actor_id: userId,
       event_type: 'resumed',
       payload: updatePayload,
     });
 
-    const storefrontSlug = (listing.seller_profiles as any)?.storefront_slug;
-    revalidatePath('/');
-    if (storefrontSlug) revalidatePath(`/store/${storefrontSlug}`);
-    revalidatePath(`/listings/${listing.slug}`);
+    revalidateListingPaths(listing.slug, listing.seller_profiles?.storefront_slug);
 
     return { success: true, data: { status: 'AVAILABLE' } };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'Failed to resume listing.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'Failed to resume listing.') };
   }
 }
 
-export async function deleteListing(listingId: string): Promise<ActionResult<{ deleted: boolean }>> {
+export async function deleteListing(
+  listingId: string
+): Promise<ActionResult<{ deleted: boolean }>> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedOwnedListing(listingId);
+    if (!auth.ok) return { success: false, error: auth.error };
 
-    if (authError || !user) return { success: false, error: 'Unauthorized.' };
-
-    const { data: listing, error: listingError } = await supabase
-      .from('listings')
-      .select('id, slug, seller_profiles!inner(user_id, storefront_slug)')
-      .eq('id', listingId)
-      .single();
-
-    if (listingError || !listing) return { success: false, error: 'Listing not found.' };
-
-    const sellerUser = (listing.seller_profiles as any)?.user_id;
-    if (sellerUser !== user.id) return { success: false, error: 'Unauthorized.' };
-
+    const { supabase, userId, listing } = auth;
     const now = new Date().toISOString();
+
     const { error: updateError } = await supabase
       .from('listings')
       .update({
@@ -334,19 +339,16 @@ export async function deleteListing(listingId: string): Promise<ActionResult<{ d
 
     await supabase.from('listing_events').insert({
       listing_id: listingId,
-      actor_id: user.id,
+      actor_id: userId,
       event_type: 'deleted',
       payload: { deleted_at: now },
     });
 
-    const storefrontSlug = (listing.seller_profiles as any)?.storefront_slug;
-    revalidatePath('/');
-    if (storefrontSlug) revalidatePath(`/store/${storefrontSlug}`);
-    revalidatePath(`/listings/${listing.slug}`);
+    revalidateListingPaths(listing.slug, listing.seller_profiles?.storefront_slug);
 
     return { success: true, data: { deleted: true } };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'Failed to delete listing.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'Failed to delete listing.') };
   }
 }
 
@@ -356,24 +358,10 @@ async function updateListingLifecycle(
   eventType: string
 ): Promise<ActionResult<{ status: string }>> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const auth = await getAuthenticatedOwnedListing(listingId);
+    if (!auth.ok) return { success: false, error: auth.error };
 
-    if (authError || !user) return { success: false, error: 'Unauthorized.' };
-
-    const { data: listing, error: listingError } = await supabase
-      .from('listings')
-      .select('id, slug, seller_profiles!inner(user_id, storefront_slug)')
-      .eq('id', listingId)
-      .single();
-
-    if (listingError || !listing) return { success: false, error: 'Listing not found.' };
-
-    const sellerUser = (listing.seller_profiles as any)?.user_id;
-    if (sellerUser !== user.id) return { success: false, error: 'Unauthorized.' };
+    const { supabase, userId, listing } = auth;
 
     const { error: updateError } = await supabase
       .from('listings')
@@ -387,19 +375,15 @@ async function updateListingLifecycle(
 
     await supabase.from('listing_events').insert({
       listing_id: listingId,
-      actor_id: user.id,
+      actor_id: userId,
       event_type: eventType,
       payload: { new_status: newStatus },
     });
 
-    const storefrontSlug = (listing.seller_profiles as any)?.storefront_slug;
-    revalidatePath('/');
-    if (storefrontSlug) revalidatePath(`/store/${storefrontSlug}`);
-    revalidatePath(`/listings/${listing.slug}`);
+    revalidateListingPaths(listing.slug, listing.seller_profiles?.storefront_slug);
 
     return { success: true, data: { status: newStatus } };
-  } catch (err: any) {
-    return { success: false, error: err.message ?? 'Lifecycle update failed.' };
+  } catch (err: unknown) {
+    return { success: false, error: getErrorMessage(err, 'Lifecycle update failed.') };
   }
 }
-

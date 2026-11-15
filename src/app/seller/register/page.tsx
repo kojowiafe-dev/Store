@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Store, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { PILOT_HALL } from '@/lib/constants';
 
 export default function SellerRegisterPage() {
   const [storeName, setStoreName] = useState('');
@@ -66,11 +67,9 @@ export default function SellerRegisterPage() {
       }
 
       if (authData.user) {
-        const pilotHallId = 'h1000000-0000-0000-0000-000000000001';
-
         await supabase.from('seller_profiles').insert({
           user_id: authData.user.id,
-          hall_id: pilotHallId,
+          hall_id: PILOT_HALL.id,
           store_name: storeName.trim(),
           storefront_slug: storefrontSlug.trim(),
           store_description: storeDescription.trim() || null,
