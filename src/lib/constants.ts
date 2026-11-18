@@ -14,10 +14,11 @@ export const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 export const STORAGE_BUCKET_PRODUCT_IMAGES = 'product-images';
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if (!url || !key) return false;
+  if (url.includes('your-project-ref') || key.includes('your-anon-key')) return false;
+  return true;
 }
 
 export function getErrorMessage(error: unknown, fallback = 'An unexpected error occurred.'): string {
