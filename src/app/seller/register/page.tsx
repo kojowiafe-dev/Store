@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { Store, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { PILOT_HALL } from '@/lib/constants';
+import { PILOT_HALL, isSupabaseConfigured, getErrorMessage } from '@/lib/constants';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function SellerRegisterPage() {
   const [storeName, setStoreName] = useState('');
@@ -45,6 +46,14 @@ export default function SellerRegisterPage() {
       return;
     }
 
+    if (!isSupabaseConfigured()) {
+      setErrorMessage(
+        'Supabase is not configured yet. Add your real NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local and restart the dev server.'
+      );
+      setLoading(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
 
@@ -79,8 +88,15 @@ export default function SellerRegisterPage() {
 
       setIsSuccess(true);
       setLoading(false);
-    } catch (err: any) {
-      setErrorMessage(err.message ?? 'An unexpected error occurred during registration.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'An unexpected error occurred during registration.');
+      if (msg.toLowerCase().includes('failed to fetch')) {
+        setErrorMessage(
+          'Could not reach Supabase (Failed to fetch). Check that NEXT_PUBLIC_SUPABASE_URL in .env.local is your real project URL, your Supabase project is active, and you restarted npm run dev.'
+        );
+      } else {
+        setErrorMessage(msg);
+      }
       setLoading(false);
     }
   };
@@ -217,14 +233,12 @@ export default function SellerRegisterPage() {
             <label className="block text-xs font-medium text-neutral-700 mb-1">
               Password <span className="text-rose-500">*</span>
             </label>
-            <input
-              type="password"
-              required
-              minLength={8}
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
+              minLength={8}
               placeholder="Minimum 8 characters"
-              className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200/90 focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs font-normal placeholder:text-neutral-400"
+              autoComplete="new-password"
             />
           </div>
 

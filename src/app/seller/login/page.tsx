@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Store, AlertCircle, ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 function LoginForm() {
   const router = useRouter();
@@ -93,13 +94,10 @@ function LoginForm() {
             <label className="block text-xs font-medium text-neutral-700 mb-1">
               Password
             </label>
-            <input
-              type="password"
-              required
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200/90 focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs font-normal placeholder:text-neutral-400"
+              onChange={setPassword}
+              autoComplete="current-password"
             />
           </div>
 
