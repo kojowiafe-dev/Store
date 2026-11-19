@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getErrorMessage } from '@/lib/constants';
 import { getListingBySlug } from '@/repositories/listing.repository';
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
@@ -14,11 +15,10 @@ export async function GET(
     }
 
     return NextResponse.json(listing);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message ?? 'Failed to retrieve listing.' },
+      { error: getErrorMessage(error, 'Failed to retrieve listing.') },
       { status: 500 }
     );
   }
 }
-

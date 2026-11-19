@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getErrorMessage } from '@/lib/constants';
 import { getMarketplaceListings } from '@/repositories/listing.repository';
+import type { MarketplaceSearchParams } from '@/types/api.types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,7 +9,9 @@ export async function GET(request: NextRequest) {
     const q = searchParams.get('q') ?? undefined;
     const category = searchParams.get('category') ?? undefined;
     const hall = searchParams.get('hall') ?? undefined;
-    const sort = (searchParams.get('sort') as any) ?? 'recent';
+    const rawSort = searchParams.get('sort');
+    const sort: NonNullable<MarketplaceSearchParams['sort']> =
+      rawSort === 'price_asc' || rawSort === 'price_desc' ? rawSort : 'recent';
     const page = parseInt(searchParams.get('page') ?? '1', 10);
     const limit = parseInt(searchParams.get('limit') ?? '20', 10);
 
@@ -21,11 +25,10 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message ?? 'Failed to execute search.' },
+      { error: getErrorMessage(error, 'Failed to execute search.') },
       { status: 500 }
     );
   }
 }
-

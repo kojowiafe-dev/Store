@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getErrorMessage } from '@/lib/constants';
 import { getStorefrontBySlug } from '@/repositories/seller.repository';
 import { getListingsByStorefrontSlug } from '@/repositories/listing.repository';
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ storefront_slug: string }> }
 ) {
   try {
@@ -20,11 +21,10 @@ export async function GET(
       ...storefront,
       listings,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: error?.message ?? 'Failed to retrieve storefront.' },
+      { error: getErrorMessage(error, 'Failed to retrieve storefront.') },
       { status: 500 }
     );
   }
 }
-
