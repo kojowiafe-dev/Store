@@ -304,21 +304,3 @@ export default function SellerRegisterPage() {
     </div>
   );
 }
-className = "font-medium text-ug-navy hover:underline"
-  >
-  Sign in
-          </Link >
-        </div >
-      </div >
-    </div >
-  );
-}
-className = "font-medium text-ug-navy hover:underline"
-  >
-  Sign in
-          </Link >
-        </div >
-      </div >
-    </div >
-  );
-}
