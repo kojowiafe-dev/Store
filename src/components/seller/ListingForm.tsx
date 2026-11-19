@@ -4,11 +4,11 @@ import React, { useState, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Clock, UploadCloud, X, ImagePlus } from 'lucide-react';
 import { createListing, updateListing } from '@/actions/listing.actions';
-import { createClient } from '@/lib/supabase/client';
+import { uploadListingPhotos } from '@/actions/storage.actions';
+import { useToast } from '@/components/ui/Toast';
 import {
   MAX_LISTING_PHOTOS,
   MAX_PHOTO_SIZE_BYTES,
-  STORAGE_BUCKET_PRODUCT_IMAGES,
   getErrorMessage,
   isSupabaseConfigured,
 } from '@/lib/constants';
@@ -41,6 +41,7 @@ interface SelectedPhoto {
 export function ListingForm({ categories, initialListing }: ListingFormProps) {
   const isEditing = Boolean(initialListing);
   const router = useRouter();
+  const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -67,14 +68,15 @@ export function ListingForm({ categories, initialListing }: ListingFormProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const createdUrlsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    const urls = createdUrlsRef.current;
     return () => {
-      photos.forEach((p) => {
-        if (p.file) URL.revokeObjectURL(p.previewUrl);
-      });
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      urls.clear();
     };
-  }, [photos]);
+  }, []);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
@@ -99,10 +101,12 @@ export function ListingForm({ categories, initialListing }: ListingFormProps) {
         setErrorMessage(`"${file.name}" exceeds the 2 MB size limit.`);
         continue;
       }
+      const previewUrl = URL.createObjectURL(file);
+      createdUrlsRef.current.add(previewUrl);
       validToAdd.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         file,
-        previewUrl: URL.createObjectURL(file),
+        previewUrl,
       });
     }
 
@@ -115,7 +119,10 @@ export function ListingForm({ categories, initialListing }: ListingFormProps) {
   const removePhoto = (id: string) => {
     setPhotos((prev) => {
       const target = prev.find((p) => p.id === id);
-      if (target?.file) URL.revokeObjectURL(target.previewUrl);
+      if (target?.file) {
+        URL.revokeObjectURL(target.previewUrl);
+        createdUrlsRef.current.delete(target.previewUrl);
+      }
       return prev.filter((p) => p.id !== id);
     });
   };
@@ -123,47 +130,32 @@ export function ListingForm({ categories, initialListing }: ListingFormProps) {
   const uploadPhotosToStorage = async (): Promise<string[]> => {
     if (photos.length === 0) return [];
 
-    const finalUrls: string[] = [];
-    const newFiles = photos.filter((p) => Boolean(p.file));
-
+    const newFiles = photos.filter((p): p is SelectedPhoto & { file: File } => Boolean(p.file));
     if (newFiles.length === 0 || !isSupabaseConfigured()) {
       return photos
         .map((p) => p.existingUrl)
         .filter((url): url is string => Boolean(url));
     }
 
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error('You must be signed in to upload photos.');
+    const formData = new FormData();
+    for (const item of newFiles) {
+      formData.append('files', item.file);
     }
 
+    const uploadResult = await uploadListingPhotos(formData);
+    if (!uploadResult.success) {
+      throw new Error(uploadResult.error);
+    }
+
+    const uploadedQueue = [...uploadResult.data.urls];
+    const finalUrls: string[] = [];
     for (const item of photos) {
       if (item.existingUrl) {
         finalUrls.push(item.existingUrl);
-        continue;
+      } else if (item.file) {
+        const nextUrl = uploadedQueue.shift();
+        if (nextUrl) finalUrls.push(nextUrl);
       }
-      if (!item.file) continue;
-
-      const ext = item.file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(STORAGE_BUCKET_PRODUCT_IMAGES)
-        .upload(filePath, item.file, { cacheControl: '3600', upsert: false });
-
-      if (uploadError) {
-        throw new Error(`Failed to upload "${item.file.name}": ${uploadError.message}`);
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from(STORAGE_BUCKET_PRODUCT_IMAGES)
-        .getPublicUrl(filePath);
-
-      finalUrls.push(publicUrlData.publicUrl);
     }
 
     return finalUrls;
@@ -199,16 +191,20 @@ export function ListingForm({ categories, initialListing }: ListingFormProps) {
 
         if (!result.success) {
           setErrorMessage(result.error);
+          toast.error(result.error);
           if (result.fieldErrors) {
             setFieldErrors(result.fieldErrors);
           }
           return;
         }
 
+        toast.success(isEditing ? 'Listing updated!' : 'Listing published!');
         router.push('/seller');
         router.refresh();
       } catch (err: unknown) {
-        setErrorMessage(getErrorMessage(err, 'Failed to publish listing.'));
+        const msg = getErrorMessage(err, 'Failed to publish listing.');
+        setErrorMessage(msg);
+        toast.error(msg);
       } finally {
         setIsUploading(false);
       }

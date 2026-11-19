@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerDbClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured, PILOT_HALL } from '@/lib/constants';
 import type { Database } from '@/types/database.types';
 
@@ -60,7 +60,7 @@ export async function getActiveHalls(): Promise<HallRow[]> {
       return FALLBACK_HALLS;
     }
 
-    const supabase = await createClient();
+    const supabase = await createServerDbClient();
     const { data, error } = await supabase
       .from('halls')
       .select('*')

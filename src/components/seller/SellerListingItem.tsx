@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useTransition } from 'react';
+import React, { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle2,
@@ -21,6 +21,7 @@ import {
 } from '@/actions/listing.actions';
 import { formatPrice, formatRelativeDate } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/Toast';
 import type { ListingAvailabilityStatus } from '@/types/database.types';
 
 interface SellerListingItemProps {
@@ -39,38 +40,52 @@ interface SellerListingItemProps {
 }
 
 export function SellerListingItem({ listing }: SellerListingItemProps) {
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const handleConfirm = () => {
     startTransition(async () => {
-      await confirmAvailability(listing.id);
+      const res = await confirmAvailability(listing.id);
+      if (res.success) toast.success('Stock confirmed and timer refreshed.');
+      else toast.error(res.error);
     });
   };
 
   const handleSoldOut = () => {
     startTransition(async () => {
-      await markSoldOut(listing.id);
+      const res = await markSoldOut(listing.id);
+      if (res.success) toast.info('Listing marked as sold out.');
+      else toast.error(res.error);
     });
   };
 
   const handlePause = () => {
     startTransition(async () => {
-      await pauseListing(listing.id);
+      const res = await pauseListing(listing.id);
+      if (res.success) toast.info('Listing paused.');
+      else toast.error(res.error);
     });
   };
 
   const handleResume = () => {
     startTransition(async () => {
-      await resumeListing(listing.id);
+      const res = await resumeListing(listing.id);
+      if (res.success) toast.success('Listing is live again.');
+      else toast.error(res.error);
     });
   };
 
   const handleDelete = () => {
-    if (confirm('Are you sure you want to delete this listing?')) {
-      startTransition(async () => {
-        await deleteListing(listing.id);
-      });
-    }
+    startTransition(async () => {
+      const res = await deleteListing(listing.id);
+      if (res.success) {
+        toast.info('Listing deleted.');
+        setConfirmingDelete(false);
+      } else {
+        toast.error(res.error);
+      }
+    });
   };
 
   const isNeedsConfirmation = listing.availability_status === 'NEEDS_CONFIRMATION';
@@ -174,15 +189,36 @@ export function SellerListingItem({ listing }: SellerListingItemProps) {
         </Link>
 
         {/* Delete */}
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={handleDelete}
-          className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-          title="Delete listing"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        {confirmingDelete ? (
+          <div className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleDelete}
+              className="px-2 py-1 rounded-lg text-[11px] font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors cursor-pointer"
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => setConfirmingDelete(false)}
+              className="px-2 py-1 rounded-lg text-[11px] font-normal text-neutral-500 hover:text-neutral-800 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => setConfirmingDelete(true)}
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+            title="Delete listing"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );

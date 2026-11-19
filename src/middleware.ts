@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/types/database.types';
 
@@ -34,13 +35,24 @@ export async function middleware(request: NextRequest) {
         );
       },
     },
-  });
+  }) as unknown as SupabaseClient<Database>;
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
+  // Redirect authenticated sellers away from login/register pages directly to dashboard
+  if (
+    user &&
+    (pathname.startsWith('/seller/login') || pathname.startsWith('/seller/register'))
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/seller';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
 
   // Protect seller portal routes (allow login and register pages)
   if (

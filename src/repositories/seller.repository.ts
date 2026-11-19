@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServerDbClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured, PILOT_HALL } from '@/lib/constants';
 import type { Database } from '@/types/database.types';
 
@@ -96,7 +96,7 @@ export async function getStorefrontBySlug(slug: string): Promise<StorefrontDetai
       return FALLBACK_STOREFRONTS[slug] ?? null;
     }
 
-    const supabase = await createClient();
+    const supabase = await createServerDbClient();
     const { data, error } = await supabase
       .from('seller_profiles')
       .select(
@@ -148,7 +148,7 @@ export async function getSellerProfileByUserId(userId: string): Promise<SellerPr
   try {
     if (!isSupabaseConfigured()) return null;
 
-    const supabase = await createClient();
+    const supabase = await createServerDbClient();
     const { data, error } = await supabase
       .from('seller_profiles')
       .select('*')
@@ -180,7 +180,7 @@ export async function getApprovedStorefronts(limit = 10): Promise<StorefrontSumm
       }));
     }
 
-    const supabase = await createClient();
+    const supabase = await createServerDbClient();
     const { data, error } = await supabase
       .from('seller_profiles')
       .select('id, store_name, storefront_slug, storefront_image_url')

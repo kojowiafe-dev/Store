@@ -1,9 +1,9 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
 // Server-only administrative client
 // Never import this file into a client-side component or file with "use client"
-export function createAdminClient() {
+export function createAdminClient(): SupabaseClient<Database> {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!serviceRoleKey) {
@@ -21,4 +21,3 @@ export function createAdminClient() {
     }
   );
 }
-

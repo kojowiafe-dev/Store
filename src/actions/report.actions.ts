@@ -1,6 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServerDbClient } from '@/lib/supabase/server';
+import { isSupabaseConfigured } from '@/lib/constants';
 import { SubmitReportSchema, type SubmitReportInput } from '@/schemas/report.schema';
 import type { ActionResult } from '@/types/api.types';
 
@@ -17,6 +18,10 @@ export async function submitReport(
       };
     }
 
+    if (!isSupabaseConfigured()) {
+      return { success: true, data: { id: `mock-report-${Date.now()}` } };
+    }
+
     const input = parseResult.data;
     const supabase = await createClient();
 
@@ -25,7 +30,8 @@ export async function submitReport(
       data: { user },
     } = await supabase.auth.getUser();
 
-    const { data: report, error } = await supabase
+    const db = await createServerDbClient();
+    const { data: report, error } = await db
       .from('reports')
       .insert({
         listing_id: input.listing_id,
@@ -38,13 +44,14 @@ export async function submitReport(
       .single();
 
     if (error || !report) {
-      // In offline/mock mode return a successful dummy reference
-      return { success: true, data: { id: `mock-report-${Date.now()}` } };
+      return {
+        success: false,
+        error: error?.message ?? 'Failed to submit report.',
+      };
     }
 
     return { success: true, data: { id: report.id } };
   } catch {
-    return { success: true, data: { id: `mock-report-${Date.now()}` } };
+    return { success: false, error: 'Failed to submit report.' };
   }
 }
-

@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, Pencil } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServerDbClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/constants';
 import { getActiveCategories } from '@/repositories/category.repository';
 import { ListingForm, type EditableListingData } from '@/components/seller/ListingForm';
@@ -27,7 +27,8 @@ export default async function EditListingPage({ params }: EditListingPageProps) 
       redirect(`/seller/login?next=/seller/listings/${id}/edit`);
     }
 
-    const { data: listing } = await supabase
+    const db = await createServerDbClient();
+    const { data: listing } = await db
       .from('listings')
       .select(
         `

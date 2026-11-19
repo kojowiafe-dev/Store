@@ -10,6 +10,7 @@ interface PasswordInputProps {
   minLength?: number;
   required?: boolean;
   autoComplete?: string;
+  id?: string;
 }
 
 export function PasswordInput({
@@ -19,12 +20,14 @@ export function PasswordInput({
   minLength,
   required = true,
   autoComplete,
+  id,
 }: PasswordInputProps) {
   const [visible, setVisible] = useState(false);
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center">
       <input
+        id={id}
         type={visible ? 'text' : 'password'}
         required={required}
         minLength={minLength}
@@ -32,17 +35,28 @@ export function PasswordInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full text-xs sm:text-sm pl-3.5 pr-10 py-2.5 rounded-xl border border-neutral-200/90 focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs font-normal placeholder:text-neutral-400"
+        className="w-full text-xs sm:text-sm pl-3.5 pr-20 py-2.5 rounded-xl border border-neutral-200/90 focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs font-normal placeholder:text-neutral-400 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
       />
       <button
         type="button"
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => setVisible((prev) => !prev)}
         aria-label={visible ? 'Hide password' : 'Show password'}
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer"
+        aria-pressed={visible}
+        className="absolute right-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-neutral-600 hover:text-ug-navy bg-neutral-100/90 hover:bg-neutral-200/70 transition-colors cursor-pointer select-none"
       >
-        {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        {visible ? (
+          <>
+            <EyeOff className="w-3.5 h-3.5" />
+            <span>Hide</span>
+          </>
+        ) : (
+          <>
+            <Eye className="w-3.5 h-3.5" />
+            <span>Show</span>
+          </>
+        )}
       </button>
     </div>
   );
 }
-

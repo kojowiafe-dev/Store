@@ -183,11 +183,14 @@ export function ListingFeed({
                 </Link>
 
                 <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-[10px] text-neutral-500 truncate">
-                      {listing.category_name}
-                    </span>
-                    <StatusBadge status={listing.availability_status} />
+                  <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[10px] text-neutral-500 truncate">
+                        {listing.category_name}
+                      </span>
+                      <StatusBadge status={listing.availability_status} />
+                    </div>
+                    <BookmarkButton listingId={listing.id} className="shrink-0" />
                   </div>
 
                   <Link href={`/listings/${listing.slug}`} className="block">

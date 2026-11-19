@@ -3,12 +3,14 @@
 import React, { useState, useTransition } from 'react';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { updateSellerProfile } from '@/actions/seller.actions';
+import { useToast } from '@/components/ui/Toast';
 
 interface SellerProfileFormProps {
   initialDescription: string;
 }
 
 export function SellerProfileForm({ initialDescription }: SellerProfileFormProps) {
+  const toast = useToast();
   const [description, setDescription] = useState(initialDescription);
   const [isPending, startTransition] = useTransition();
   const [success, setSuccess] = useState(false);
@@ -26,10 +28,12 @@ export function SellerProfileForm({ initialDescription }: SellerProfileFormProps
 
       if (!result.success) {
         setErrorMessage(result.error);
+        toast.error(result.error);
         return;
       }
 
       setSuccess(true);
+      toast.success('Storefront profile updated!');
       setTimeout(() => setSuccess(false), 3000);
     });
   };

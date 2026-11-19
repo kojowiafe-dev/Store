@@ -2,12 +2,17 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Store, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { PILOT_HALL, isSupabaseConfigured, getErrorMessage } from '@/lib/constants';
+import { registerSellerAccount } from '@/actions/auth.actions';
+import { getErrorMessage } from '@/lib/constants';
 import { PasswordInput } from '@/components/ui/PasswordInput';
+import { useToast } from '@/components/ui/Toast';
 
 export default function SellerRegisterPage() {
+  const router = useRouter();
+  const toast = useToast();
+
   const [storeName, setStoreName] = useState('');
   const [storefrontSlug, setStorefrontSlug] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('+233');
@@ -17,8 +22,8 @@ export default function SellerRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [autoSignedIn, setAutoSignedIn] = useState(false);
 
-  // Sync store name to slug
   const handleStoreNameChange = (name: string) => {
     setStoreName(name);
     const slug = name
@@ -29,75 +34,71 @@ export default function SellerRegisterPage() {
     setStorefrontSlug(slug);
   };
 
+  const failWith = (message: string) => {
+    setErrorMessage(message);
+    toast.error(message);
+    setLoading(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setLoading(true);
 
     if (password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters long.');
-      setLoading(false);
+      failWith('Password must be at least 8 characters long.');
       return;
     }
 
-    if (!whatsappNumber.startsWith('+233') || whatsappNumber.length < 12) {
-      setErrorMessage('Please provide a valid Ghana WhatsApp number starting with +233.');
-      setLoading(false);
-      return;
-    }
+    const cleanedPhone = whatsappNumber.replace(/[\s\-()]/g, '').trim();
+    const isValidGhanaPhone =
+      /^\+233\d{9}$/.test(cleanedPhone) ||
+      /^0\d{9}$/.test(cleanedPhone) ||
+      /^233\d{9}$/.test(cleanedPhone);
 
-    if (!isSupabaseConfigured()) {
-      setErrorMessage(
-        'Supabase is not configured yet. Add your real NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local and restart the dev server.'
-      );
-      setLoading(false);
+    if (!isValidGhanaPhone) {
+      failWith('Enter a valid Ghana WhatsApp number (e.g. +233501234567 or 0501234567).');
       return;
     }
 
     try {
-      const supabase = createClient();
-
-      // Step 1: Sign up in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
+      const result = await registerSellerAccount({
+        storeName,
+        storefrontSlug,
+        whatsappNumber: cleanedPhone,
+        email,
         password,
-        options: {
-          data: {
-            display_name: storeName.trim(),
-            whatsapp_number: whatsappNumber.trim(),
-          },
-        },
+        storeDescription,
       });
 
-      if (authError) {
-        setErrorMessage(authError.message);
-        setLoading(false);
+      if (!result.success) {
+        failWith(result.error);
         return;
       }
 
-      if (authData.user) {
-        await supabase.from('seller_profiles').insert({
-          user_id: authData.user.id,
-          hall_id: PILOT_HALL.id,
-          store_name: storeName.trim(),
-          storefront_slug: storefrontSlug.trim(),
-          store_description: storeDescription.trim() || null,
-          is_approved: false,
-        });
+      if (result.data.autoSignedIn) {
+        toast.success('Storefront created! Redirecting to your dashboard...');
+        router.push('/seller');
+        router.refresh();
+        return;
       }
 
+      setAutoSignedIn(false);
       setIsSuccess(true);
       setLoading(false);
+      toast.success('Storefront registered successfully!');
     } catch (err: unknown) {
       const msg = getErrorMessage(err, 'An unexpected error occurred during registration.');
       if (msg.toLowerCase().includes('failed to fetch')) {
-        setErrorMessage(
-          'Could not reach Supabase (Failed to fetch). Check that NEXT_PUBLIC_SUPABASE_URL in .env.local is your real project URL, your Supabase project is active, and you restarted npm run dev.'
+        failWith(
+          'Could not reach the server. Check your internet connection and verify Supabase settings in .env.local.'
         );
       } else {
-        setErrorMessage(msg);
+        failWith(msg);
       }
-      setLoading(false);
     }
   };
 
@@ -108,20 +109,44 @@ export default function SellerRegisterPage() {
           <div className="w-11 h-11 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
             <CheckCircle2 className="w-6 h-6" />
           </div>
-          <h2 className="text-base font-semibold text-neutral-900 mb-1.5">Check Your Email</h2>
-          <p className="text-xs text-neutral-600 leading-relaxed mb-5 font-normal">
-            We have sent a confirmation link to <span className="font-medium text-neutral-800">{email}</span>. Click the link to verify your email.
+          <h2 className="text-base font-semibold text-neutral-900 mb-1.5">
+            Storefront Registered
+          </h2>
+          <p className="text-xs text-neutral-600 leading-relaxed mb-4 font-normal">
+            <span className="font-medium text-neutral-900">{storeName}</span> has been registered in{' '}
+            <span className="font-medium text-neutral-900">Jean Nelson AKA Hall</span> for{' '}
+            <span className="font-medium text-neutral-800">{email.trim()}</span>.
           </p>
           <div className="p-3 bg-neutral-50 rounded-xl text-xs text-neutral-500 mb-5 text-left border border-neutral-200/70 font-normal leading-relaxed">
             <span className="font-medium text-neutral-700 block mb-0.5">What happens next?</span>
-            To maintain student buyer trust in Jean Nelson AKA Hall, the campus coordinator will review and activate your storefront within 24 hours of email confirmation.
+            Your storefront link is <span className="font-mono text-neutral-700">/store/{storefrontSlug}</span>. Once the hall coordinator approves your store, your listings go live to all buyers.
           </div>
-          <Link
-            href="/seller/login"
-            className="inline-flex w-full justify-center py-2.5 rounded-xl text-xs font-medium text-white bg-ug-navy hover:bg-ug-navy-light transition-colors"
-          >
-            Go to Seller Login
-          </Link>
+
+          <div className="space-y-2">
+            {autoSignedIn ? (
+              <>
+                <Link
+                  href="/seller"
+                  className="inline-flex w-full justify-center py-2.5 rounded-xl text-xs font-medium text-white bg-ug-navy hover:bg-ug-navy-light transition-colors"
+                >
+                  Go to Seller Dashboard
+                </Link>
+                <Link
+                  href="/seller/login"
+                  className="inline-flex w-full justify-center py-2 rounded-xl text-xs font-medium text-neutral-600 hover:text-neutral-900 border border-neutral-200/80 hover:bg-neutral-50 transition-colors"
+                >
+                  Seller Login
+                </Link>
+              </>
+            ) : (
+              <Link
+                href="/seller/login"
+                className="inline-flex w-full justify-center py-2.5 rounded-xl text-xs font-medium text-white bg-ug-navy hover:bg-ug-navy-light transition-colors"
+              >
+                Go to Seller Login
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -207,11 +232,11 @@ export default function SellerRegisterPage() {
               required
               value={whatsappNumber}
               onChange={(e) => setWhatsappNumber(e.target.value)}
-              placeholder="+233501234567"
+              placeholder="+233501234567 or 0501234567"
               className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200/90 focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs font-normal placeholder:text-neutral-400"
             />
             <p className="text-[11px] text-neutral-400 mt-1 font-normal">
-              Ghana country code +233. Buyers will message you here.
+              Enter +233... or local 050... format. Buyers will message you here.
             </p>
           </div>
 
@@ -234,6 +259,7 @@ export default function SellerRegisterPage() {
               Password <span className="text-rose-500">*</span>
             </label>
             <PasswordInput
+              id="register-password"
               value={password}
               onChange={setPassword}
               minLength={8}
@@ -276,5 +302,23 @@ export default function SellerRegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+className = "font-medium text-ug-navy hover:underline"
+  >
+  Sign in
+          </Link >
+        </div >
+      </div >
+    </div >
+  );
+}
+className = "font-medium text-ug-navy hover:underline"
+  >
+  Sign in
+          </Link >
+        </div >
+      </div >
+    </div >
   );
 }

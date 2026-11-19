@@ -60,6 +60,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       halls: {
         Row: {
@@ -89,6 +90,15 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'halls_university_id_fkey';
+            columns: ['university_id'];
+            isOneToOne: false;
+            referencedRelation: 'universities';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       profiles: {
         Row: {
@@ -124,6 +134,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       seller_profiles: {
         Row: {
@@ -168,6 +179,22 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'seller_profiles_hall_id_fkey';
+            columns: ['hall_id'];
+            isOneToOne: false;
+            referencedRelation: 'halls';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'seller_profiles_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: true;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       categories: {
         Row: {
@@ -206,6 +233,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       listings: {
         Row: {
@@ -265,6 +293,22 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'listings_seller_id_fkey';
+            columns: ['seller_id'];
+            isOneToOne: false;
+            referencedRelation: 'seller_profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'listings_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'categories';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       listing_images: {
         Row: {
@@ -291,6 +335,15 @@ export interface Database {
           is_primary?: boolean;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'listing_images_listing_id_fkey';
+            columns: ['listing_id'];
+            isOneToOne: false;
+            referencedRelation: 'listings';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       listing_events: {
         Row: {
@@ -317,6 +370,15 @@ export interface Database {
           payload?: Json;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'listing_events_listing_id_fkey';
+            columns: ['listing_id'];
+            isOneToOne: false;
+            referencedRelation: 'listings';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       reports: {
         Row: {
@@ -352,8 +414,24 @@ export interface Database {
           reviewed_at?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: 'reports_listing_id_fkey';
+            columns: ['listing_id'];
+            isOneToOne: false;
+            referencedRelation: 'listings';
+            referencedColumns: ['id'];
+          },
+        ];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: {
+      listing_availability_status: ListingAvailabilityStatus;
+      report_reason: ReportReason;
+      report_status: ReportStatus;
+    };
+    CompositeTypes: Record<string, never>;
   };
 }
-

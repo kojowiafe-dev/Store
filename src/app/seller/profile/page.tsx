@@ -1,18 +1,25 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Store, MapPin, Phone } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServerDbClient } from '@/lib/supabase/server';
+import { PILOT_HALL, isSupabaseConfigured } from '@/lib/constants';
 import { redirect } from 'next/navigation';
 import { SellerProfileForm } from '@/components/seller/SellerProfileForm';
 
-export default async function SellerProfilePage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+interface SellerSettingsData {
+  id: string;
+  store_name: string;
+  storefront_slug: string;
+  store_description: string | null;
+  storefront_image_url: string | null;
+  halls: { name: string } | null;
+}
 
-  let seller = null;
+export default async function SellerProfilePage() {
+  let seller: SellerSettingsData | null = null;
   let whatsappNumber = '+233501234567';
 
-  if (supabaseUrl && supabaseAnonKey) {
+  if (isSupabaseConfigured()) {
     const supabase = await createClient();
     const {
       data: { user },
@@ -22,17 +29,19 @@ export default async function SellerProfilePage() {
       redirect('/seller/login');
     }
 
-    const { data: profile } = await supabase
+    const db = await createServerDbClient();
+
+    const { data: profile } = await db
       .from('profiles')
       .select('whatsapp_number')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (profile) {
       whatsappNumber = profile.whatsapp_number;
     }
 
-    const { data: sellerData } = await supabase
+    const { data: sellerData } = await db
       .from('seller_profiles')
       .select(`
         id,
@@ -45,17 +54,17 @@ export default async function SellerProfilePage() {
         )
       `)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    seller = sellerData;
+    seller = sellerData as SellerSettingsData | null;
   } else {
     seller = {
-      id: 's1000000-0000-0000-0000-000000000001',
+      id: 'bbbbbbbb-0000-0000-0000-000000000001',
       store_name: "Ama's Kitchen",
       storefront_slug: 'amas-kitchen',
       store_description: 'Fresh, warm homemade student meals delivered hot to Jean Nelson AKA Hall.',
       storefront_image_url: null,
-      halls: { name: 'Jean Nelson AKA Hall' },
+      halls: { name: PILOT_HALL.name },
     };
   }
 
@@ -63,7 +72,7 @@ export default async function SellerProfilePage() {
     redirect('/seller');
   }
 
-  const hallName = (seller.halls as any)?.name ?? 'Jean Nelson AKA Hall';
+  const hallName = seller.halls?.name ?? PILOT_HALL.name;
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">

@@ -4,12 +4,15 @@ import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Store, AlertCircle, ArrowLeft } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { loginSellerAccount } from '@/actions/auth.actions';
+import { getErrorMessage } from '@/lib/constants';
 import { PasswordInput } from '@/components/ui/PasswordInput';
+import { useToast } from '@/components/ui/Toast';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
   const next = searchParams.get('next') ?? '/seller';
 
   const [email, setEmail] = useState('');
@@ -23,26 +26,25 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+      const result = await loginSellerAccount({
+        email,
         password,
       });
 
-      if (error) {
-        if (error.message.includes('Email not confirmed')) {
-          setErrorMessage('Please check your email and click the confirmation link before signing in.');
-        } else {
-          setErrorMessage('Invalid email or password. Please try again.');
-        }
+      if (!result.success) {
+        setErrorMessage(result.error);
+        toast.error(result.error);
         setLoading(false);
         return;
       }
 
-      router.push(next);
+      toast.success('Signed in successfully!');
+      router.push(next.startsWith('/') ? next : result.data.redirectTo);
       router.refresh();
-    } catch (err: any) {
-      setErrorMessage(err.message ?? 'An unexpected error occurred.');
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'An unexpected error occurred.');
+      setErrorMessage(msg);
+      toast.error(msg);
       setLoading(false);
     }
   };
@@ -95,6 +97,7 @@ function LoginForm() {
               Password
             </label>
             <PasswordInput
+              id="login-password"
               value={password}
               onChange={setPassword}
               autoComplete="current-password"

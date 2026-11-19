@@ -2,10 +2,20 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ShieldCheck, MapPin, Store } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { PILOT_HALL } from '@/lib/constants';
 import { ApproveSellerButton } from '@/components/admin/ApproveSellerButton';
 
+interface PendingSellerRow {
+  id: string;
+  store_name: string;
+  storefront_slug: string;
+  created_at: string;
+  halls: { name: string } | null;
+  profiles: { display_name: string; whatsapp_number: string } | null;
+}
+
 export default async function AdminSellersPage() {
-  let pendingSellers: any[] = [];
+  let pendingSellers: PendingSellerRow[] = [];
 
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
@@ -23,7 +33,7 @@ export default async function AdminSellersPage() {
         .eq('is_approved', false)
         .order('created_at', { ascending: false });
 
-      pendingSellers = data ?? [];
+      pendingSellers = (data ?? []) as unknown as PendingSellerRow[];
     } catch {
       pendingSellers = [];
     }
@@ -65,8 +75,8 @@ export default async function AdminSellersPage() {
         ) : (
           <div className="divide-y divide-neutral-100">
             {pendingSellers.map((seller) => {
-              const profile = seller.profiles as any;
-              const hall = seller.halls as any;
+              const profile = seller.profiles;
+              const hall = seller.halls;
 
               return (
                 <div
@@ -78,7 +88,7 @@ export default async function AdminSellersPage() {
                     <div className="flex items-center gap-2 text-xs text-neutral-400 font-normal">
                       <span className="inline-flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-neutral-400" />
-                        {hall?.name ?? 'Jean Nelson AKA Hall'}
+                        {hall?.name ?? PILOT_HALL.name}
                       </span>
                       <span>&middot;</span>
                       <span>{profile?.display_name ?? 'Student'}</span>

@@ -70,7 +70,7 @@ export function ShareButton({
           url: shareUrl,
         });
         return;
-      } catch (err) {
+      } catch {
         // User cancelled or share failed, fallback to menu
       }
     }

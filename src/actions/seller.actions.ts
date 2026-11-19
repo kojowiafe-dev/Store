@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServerDbClient } from '@/lib/supabase/server';
+import { ensurePilotReferenceData } from '@/actions/auth.actions';
 import { getErrorMessage } from '@/lib/constants';
 import {
   CreateSellerProfileSchema,
@@ -36,8 +37,11 @@ export async function createSellerProfile(
       return { success: false, error: 'You must be signed in to create a storefront.' };
     }
 
+    const db = await createServerDbClient();
+    await ensurePilotReferenceData(db);
+
     // Check if user already has a storefront
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from('seller_profiles')
       .select('id, storefront_slug')
       .eq('user_id', user.id)
@@ -51,7 +55,7 @@ export async function createSellerProfile(
     }
 
     // Check if slug is unique
-    const { data: slugConflict } = await supabase
+    const { data: slugConflict } = await db
       .from('seller_profiles')
       .select('id')
       .eq('storefront_slug', input.storefront_slug)
@@ -65,18 +69,22 @@ export async function createSellerProfile(
       };
     }
 
-    // Update profiles table with display name and whatsapp number
-    await supabase
+    // Upsert profiles table with display name and whatsapp number
+    await db
       .from('profiles')
-      .update({
-        display_name: input.store_name,
-        whatsapp_number: input.whatsapp_number,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id);
+      .upsert(
+        {
+          id: user.id,
+          display_name: input.store_name,
+          whatsapp_number: input.whatsapp_number,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
 
-    // Insert seller profile (defaults to is_approved: false per policy)
-    const { data: seller, error: insertError } = await supabase
+    // Insert seller profile
+    const { data: seller, error: insertError } = await db
       .from('seller_profiles')
       .insert({
         user_id: user.id,
@@ -85,7 +93,8 @@ export async function createSellerProfile(
         storefront_slug: input.storefront_slug,
         store_description: input.store_description ?? null,
         storefront_image_url: input.storefront_image_url ?? null,
-        is_approved: false,
+        is_approved: true,
+        approved_at: new Date().toISOString(),
       })
       .select('id, storefront_slug')
       .single();
@@ -132,7 +141,9 @@ export async function updateSellerProfile(
       return { success: false, error: 'Unauthorized.' };
     }
 
-    const { data: seller, error: sellerError } = await supabase
+    const db = await createServerDbClient();
+
+    const { data: seller, error: sellerError } = await db
       .from('seller_profiles')
       .select('id, storefront_slug')
       .eq('user_id', user.id)
@@ -142,7 +153,7 @@ export async function updateSellerProfile(
       return { success: false, error: 'Seller profile not found.' };
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from('seller_profiles')
       .update({
         store_description: input.store_description,

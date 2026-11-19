@@ -11,8 +11,10 @@ import {
   AlertCircle,
   Settings,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServerDbClient } from '@/lib/supabase/server';
+import { ensureSellerProfileForAuthUser } from '@/actions/auth.actions';
 import { PILOT_HALL, isSupabaseConfigured } from '@/lib/constants';
+import { CompleteStorefrontSetup } from '@/components/seller/CompleteStorefrontSetup';
 import { SellerListingItem } from '@/components/seller/SellerListingItem';
 import { SignOutButton } from '@/components/seller/SignOutButton';
 import { StoreQRCodeModal } from '@/components/seller/StoreQRCodeModal';
@@ -44,6 +46,7 @@ export default async function SellerDashboardPage() {
   let seller: DashboardSeller | null = null;
   let listings: DashboardListing[] = [];
   let whatsappTaps = 0;
+  let userEmail: string | undefined;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -55,24 +58,12 @@ export default async function SellerDashboardPage() {
       redirect('/seller/login');
     }
 
-    const { data: sellerProfile } = await supabase
-      .from('seller_profiles')
-      .select(`
-        id,
-        store_name,
-        storefront_slug,
-        is_approved,
-        halls (
-          name
-        )
-      `)
-      .eq('user_id', authUser.id)
-      .maybeSingle();
-
-    seller = sellerProfile as DashboardSeller | null;
+    userEmail = authUser.email;
+    seller = await ensureSellerProfileForAuthUser(authUser);
 
     if (seller) {
-      const { data: listingData } = await supabase
+      const db = await createServerDbClient();
+      const { data: listingData } = await db
         .from('listings')
         .select(
           'id, slug, title, price, currency, price_negotiable, availability_status, confirm_before, expires_at, created_at'
@@ -85,7 +76,7 @@ export default async function SellerDashboardPage() {
 
       if (listings.length > 0) {
         const listingIds = listings.map((l) => l.id);
-        const { count } = await supabase
+        const { count } = await db
           .from('listing_events')
           .select('*', { count: 'exact', head: true })
           .in('listing_id', listingIds)
@@ -134,21 +125,7 @@ export default async function SellerDashboardPage() {
   }
 
   if (!seller) {
-    return (
-      <div className="max-w-md mx-auto py-12 px-4 text-center bg-white border border-neutral-200/80 rounded-2xl p-6 shadow-2xs">
-        <Store className="w-10 h-10 text-neutral-400 mx-auto mb-3" strokeWidth={1.5} />
-        <h2 className="text-base font-semibold text-neutral-900 mb-1">Complete Storefront Setup</h2>
-        <p className="text-xs text-neutral-500 mb-5 font-normal leading-relaxed">
-          Your account is registered. Finish setting up your storefront details to start publishing products.
-        </p>
-        <Link
-          href="/seller/register"
-          className="inline-flex px-4 py-2 rounded-lg text-xs font-medium text-white bg-ug-navy hover:bg-ug-navy-light transition-colors"
-        >
-          Complete Setup
-        </Link>
-      </div>
-    );
+    return <CompleteStorefrontSetup userEmail={userEmail} />;
   }
 
   const hallName = seller.halls?.name ?? PILOT_HALL.name;

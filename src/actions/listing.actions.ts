@@ -1,7 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServerDbClient } from '@/lib/supabase/server';
+import { ensurePilotReferenceData } from '@/actions/auth.actions';
 import {
   DEFAULT_CURRENCY,
   MAX_LISTING_PHOTOS,
@@ -55,7 +56,7 @@ function revalidateListingPaths(listingSlug: string, storefrontSlug?: string | n
 async function getAuthenticatedOwnedListing(listingId: string): Promise<
   | {
       ok: true;
-      supabase: Awaited<ReturnType<typeof createClient>>;
+      supabase: Awaited<ReturnType<typeof createServerDbClient>>;
       userId: string;
       listing: OwnedListingRow;
     }
@@ -71,7 +72,9 @@ async function getAuthenticatedOwnedListing(listingId: string): Promise<
     return { ok: false, error: 'Unauthorized.' };
   }
 
-  const { data: listing, error: listingError } = await supabase
+  const db = await createServerDbClient();
+
+  const { data: listing, error: listingError } = await db
     .from('listings')
     .select(
       `
@@ -94,7 +97,7 @@ async function getAuthenticatedOwnedListing(listingId: string): Promise<
     return { ok: false, error: 'You are not authorized to update this listing.' };
   }
 
-  return { ok: true, supabase, userId: user.id, listing: typedListing };
+  return { ok: true, supabase: db, userId: user.id, listing: typedListing };
 }
 
 export async function recordContactTap(
@@ -105,8 +108,8 @@ export async function recordContactTap(
       return { success: true, data: { recorded: true } };
     }
 
-    const supabase = await createClient();
-    await supabase.from('listing_events').insert({
+    const db = await createServerDbClient();
+    await db.from('listing_events').insert({
       listing_id: listingId,
       actor_id: null,
       event_type: 'contact_tapped',
@@ -144,7 +147,10 @@ export async function createListing(
       return { success: false, error: 'You must be signed in as a seller to create a listing.' };
     }
 
-    const { data: seller, error: sellerError } = await supabase
+    const db = await createServerDbClient();
+    await ensurePilotReferenceData(db);
+
+    const { data: seller, error: sellerError } = await db
       .from('seller_profiles')
       .select('id, storefront_slug, is_approved')
       .eq('user_id', user.id)
@@ -153,7 +159,7 @@ export async function createListing(
     if (sellerError || !seller) {
       return {
         success: false,
-        error: 'Seller profile not found. Please complete seller registration.',
+        error: 'Seller profile not found. Please complete storefront setup on your dashboard.',
       };
     }
 
@@ -161,7 +167,7 @@ export async function createListing(
       return { success: false, error: 'Your seller account is awaiting administrator approval.' };
     }
 
-    const { data: category } = await supabase
+    const { data: category } = await db
       .from('categories')
       .select('default_expiry_hours, default_confirm_lead_hours')
       .eq('id', input.category_id)
@@ -170,7 +176,7 @@ export async function createListing(
     const { expiresAt, confirmBefore } = computeExpiryWindow(category);
     const slug = generateSlug(input.title);
 
-    const { data: listing, error: insertError } = await supabase
+    const { data: listing, error: insertError } = await db
       .from('listings')
       .insert({
         seller_id: seller.id,
@@ -200,10 +206,10 @@ export async function createListing(
         is_primary: idx === 0,
       }));
 
-      await supabase.from('listing_images').insert(imagesToInsert);
+      await db.from('listing_images').insert(imagesToInsert);
     }
 
-    await supabase.from('listing_events').insert({
+    await db.from('listing_events').insert({
       listing_id: listing.id,
       actor_id: user.id,
       event_type: 'created',

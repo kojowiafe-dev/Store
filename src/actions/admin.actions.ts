@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServerDbClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getErrorMessage } from '@/lib/constants';
 import type { ActionResult } from '@/types/api.types';
@@ -19,7 +19,8 @@ async function verifyAdminUser(): Promise<
     return { ok: false, error: 'Unauthorized.' };
   }
 
-  const { data: profile } = await supabase
+  const db = await createServerDbClient();
+  const { data: profile } = await db
     .from('profiles')
     .select('is_admin')
     .eq('id', user.id)
