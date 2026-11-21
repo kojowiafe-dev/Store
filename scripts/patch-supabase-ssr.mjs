@@ -17,7 +17,7 @@ export declare function createServerClient<
     cookies: CookieMethodsServer;
     cookieEncoding?: "raw" | "base64url";
   }
-): SupabaseClient<Database, SchemaName, SchemaName>;
+): SupabaseClient<Database, SchemaName>;
 
 export declare function createServerClient<
   Database = any,
@@ -32,7 +32,7 @@ export declare function createServerClient<
     cookies: CookieMethodsServerDeprecated;
     cookieEncoding?: "raw" | "base64url";
   }
-): SupabaseClient<Database, SchemaName, SchemaName>;
+): SupabaseClient<Database, SchemaName>;
 `;
 
 const browserClientDts = `import { SupabaseClient, type SupabaseClientOptions } from "@supabase/supabase-js";
@@ -52,7 +52,7 @@ export declare function createBrowserClient<
     cookieEncoding?: "raw" | "base64url";
     isSingleton?: boolean;
   }
-): SupabaseClient<Database, SchemaName, SchemaName>;
+): SupabaseClient<Database, SchemaName>;
 
 export declare function createBrowserClient<
   Database = any,
@@ -68,7 +68,7 @@ export declare function createBrowserClient<
     cookieEncoding?: "raw" | "base64url";
     isSingleton?: boolean;
   }
-): SupabaseClient<Database, SchemaName, SchemaName>;
+): SupabaseClient<Database, SchemaName>;
 `;
 
 for (const dir of ['main', 'module']) {
