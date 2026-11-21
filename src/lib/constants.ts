@@ -8,6 +8,42 @@ export const PILOT_HALL = {
   slug: process.env.NEXT_PUBLIC_DEFAULT_HALL_SLUG ?? 'jean-nelson-aka-hall',
 } as const;
 
+export const UG_STUDENT_EMAIL_DOMAIN = '@st.ug.edu.gh';
+
+export function isUgStudentEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase().endsWith(UG_STUDENT_EMAIL_DOMAIN);
+}
+
+export const PRESET_PICKUP_SPOTS = [
+  "Jean Nelson Porter's Lodge",
+  'Jean Nelson Block A Common Room',
+  'Jean Nelson Block B Common Room',
+  'Jean Nelson Block C Common Room',
+  'Jean Nelson Block D Common Room',
+  'Jean Nelson Bush Canteen Walkway',
+  'Balme Library Drop-off',
+  'Room Delivery (Inside Hall)',
+] as const;
+
+export const STORE_STATUS_META = {
+  OPEN_NOW: {
+    label: 'Open Now',
+    shortLabel: 'Open',
+    description: 'Available & taking WhatsApp orders right now',
+  },
+  PRE_ORDER: {
+    label: 'Pre-Order',
+    shortLabel: 'Pre-Order',
+    description: 'Taking advance orders for the next batch',
+  },
+  CLOSED: {
+    label: 'Closed',
+    shortLabel: 'Closed',
+    description: 'Closed for now — message for next restock',
+  },
+} as const;
+
 export const DEFAULT_CURRENCY = 'GHS';
 export const MAX_LISTING_PHOTOS = 3;
 export const MAX_PHOTO_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB

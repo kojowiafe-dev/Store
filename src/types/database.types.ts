@@ -26,6 +26,8 @@ export type ReportReason =
 
 export type ReportStatus = 'pending' | 'reviewed' | 'dismissed' | 'actioned';
 
+export type StoreOperatingStatus = 'OPEN_NOW' | 'PRE_ORDER' | 'CLOSED';
+
 export interface Database {
   public: {
     Tables: {
@@ -145,6 +147,10 @@ export interface Database {
           storefront_slug: string;
           storefront_image_url: string | null;
           store_description: string | null;
+          store_status: StoreOperatingStatus;
+          operating_hours_note: string | null;
+          primary_pickup_spot: string | null;
+          ug_student_verified: boolean;
           is_approved: boolean;
           approved_at: string | null;
           approved_by: string | null;
@@ -159,6 +165,10 @@ export interface Database {
           storefront_slug: string;
           storefront_image_url?: string | null;
           store_description?: string | null;
+          store_status?: StoreOperatingStatus;
+          operating_hours_note?: string | null;
+          primary_pickup_spot?: string | null;
+          ug_student_verified?: boolean;
           is_approved?: boolean;
           approved_at?: string | null;
           approved_by?: string | null;
@@ -173,6 +183,10 @@ export interface Database {
           storefront_slug?: string;
           storefront_image_url?: string | null;
           store_description?: string | null;
+          store_status?: StoreOperatingStatus;
+          operating_hours_note?: string | null;
+          primary_pickup_spot?: string | null;
+          ug_student_verified?: boolean;
           is_approved?: boolean;
           approved_at?: string | null;
           approved_by?: string | null;

@@ -24,7 +24,9 @@ export function ListingCard({ listing, whatsappNumber }: ListingCardProps) {
   });
 
   // Shorten hall display for compact mobile cards (e.g. "Jean Nelson AKA" instead of repeating "Hall")
-  const shortHallName = listing.hall_name.replace(/\s+Hall$/i, '');
+  const locationLabel = listing.primary_pickup_spot
+    ? listing.primary_pickup_spot.replace(/^Jean Nelson\s+/i, '')
+    : listing.hall_name.replace(/\s+Hall$/i, '');
 
   return (
     <div className="group flex flex-col bg-white border border-neutral-200/80 rounded-xl overflow-hidden hover:border-neutral-300 transition-all duration-150 shadow-2xs">
@@ -67,7 +69,7 @@ export function ListingCard({ listing, whatsappNumber }: ListingCardProps) {
           </span>
           <span className="inline-flex items-center gap-0.5 text-neutral-400 shrink-0 text-[10px]">
             <MapPin className="w-2.5 h-2.5 text-neutral-400 shrink-0" />
-            <span className="truncate max-w-[65px] sm:max-w-[85px]">{shortHallName}</span>
+            <span className="truncate max-w-[72px] sm:max-w-[95px]">{locationLabel}</span>
           </span>
         </div>
 

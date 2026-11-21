@@ -5,7 +5,7 @@ import type {
   MarketplaceSearchParams,
   PaginatedResponse,
 } from '@/types/api.types';
-import type { ListingAvailabilityStatus } from '@/types/database.types';
+import type { ListingAvailabilityStatus, StoreOperatingStatus } from '@/types/database.types';
 
 export interface ListingImageDTO {
   id: string;
@@ -40,6 +40,10 @@ interface ListingCardJoinRow {
   seller_profiles: {
     store_name: string;
     storefront_slug: string;
+    store_status?: StoreOperatingStatus;
+    operating_hours_note?: string | null;
+    primary_pickup_spot?: string | null;
+    ug_student_verified?: boolean;
     halls: {
       name: string;
       slug: string;
@@ -63,6 +67,43 @@ interface ListingDetailJoinRow extends ListingCardJoinRow {
 }
 
 const LISTING_CARD_SELECT = `
+  id,
+  slug,
+  title,
+  description,
+  price,
+  price_negotiable,
+  currency,
+  availability_status,
+  created_at,
+  categories!inner (
+    name,
+    slug,
+    icon
+  ),
+  seller_profiles!inner (
+    store_name,
+    storefront_slug,
+    is_approved,
+    store_status,
+    operating_hours_note,
+    primary_pickup_spot,
+    ug_student_verified,
+    halls!inner (
+      name,
+      slug
+    ),
+    profiles:user_id (
+      whatsapp_number
+    )
+  ),
+  listing_images (
+    storage_path,
+    is_primary
+  )
+`;
+
+const LISTING_CARD_SELECT_LEGACY = `
   id,
   slug,
   title,
@@ -119,6 +160,10 @@ function mapRowToCardDTO(item: ListingCardJoinRow): PublicListingCardDTO {
     whatsapp_number: item.seller_profiles?.profiles?.whatsapp_number ?? '+233501234567',
     primary_image_path: primaryImage,
     created_at: item.created_at,
+    store_status: item.seller_profiles?.store_status ?? 'OPEN_NOW',
+    operating_hours_note: item.seller_profiles?.operating_hours_note ?? null,
+    primary_pickup_spot: item.seller_profiles?.primary_pickup_spot ?? null,
+    ug_student_verified: Boolean(item.seller_profiles?.ug_student_verified),
   };
 }
 
@@ -378,40 +423,48 @@ export async function getMarketplaceListings(
 
     const supabase = await createClient();
 
-    let query = supabase
-      .from('listings')
-      .select(LISTING_CARD_SELECT, { count: 'exact' })
-      .is('deleted_at', null)
-      .in('availability_status', ['AVAILABLE', 'NEEDS_CONFIRMATION'])
-      .eq('seller_profiles.is_approved', true);
+    const buildQuery = (selectClause: string) => {
+      let query = supabase
+        .from('listings')
+        .select(selectClause, { count: 'exact' })
+        .is('deleted_at', null)
+        .in('availability_status', ['AVAILABLE', 'NEEDS_CONFIRMATION'])
+        .eq('seller_profiles.is_approved', true);
 
-    if (params.category && params.category !== 'all') {
-      query = query.eq('categories.slug', params.category);
+      if (params.category && params.category !== 'all') {
+        query = query.eq('categories.slug', params.category);
+      }
+
+      if (params.hall && params.hall !== 'all') {
+        query = query.eq('seller_profiles.halls.slug', params.hall);
+      }
+
+      if (params.q && params.q.trim().length > 0) {
+        const searchTerm = params.q.trim();
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+      }
+
+      const nowIso = new Date().toISOString();
+      query = query.or(`expires_at.is.null,expires_at.gt.${nowIso}`);
+
+      if (params.sort === 'price_asc') {
+        query = query.order('price', { ascending: true, nullsFirst: false });
+      } else if (params.sort === 'price_desc') {
+        query = query.order('price', { ascending: false, nullsFirst: false });
+      } else {
+        query = query.order('created_at', { ascending: false });
+      }
+
+      return query.range(offset, offset + limit - 1);
+    };
+
+    let { data, count, error } = await buildQuery(LISTING_CARD_SELECT);
+    if (error) {
+      const legacy = await buildQuery(LISTING_CARD_SELECT_LEGACY);
+      data = legacy.data;
+      count = legacy.count;
+      error = legacy.error;
     }
-
-    if (params.hall && params.hall !== 'all') {
-      query = query.eq('seller_profiles.halls.slug', params.hall);
-    }
-
-    if (params.q && params.q.trim().length > 0) {
-      const searchTerm = params.q.trim();
-      query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-    }
-
-    const nowIso = new Date().toISOString();
-    query = query.or(`expires_at.is.null,expires_at.gt.${nowIso}`);
-
-    if (params.sort === 'price_asc') {
-      query = query.order('price', { ascending: true, nullsFirst: false });
-    } else if (params.sort === 'price_desc') {
-      query = query.order('price', { ascending: false, nullsFirst: false });
-    } else {
-      query = query.order('created_at', { ascending: false });
-    }
-
-    query = query.range(offset, offset + limit - 1);
-
-    const { data, count, error } = await query;
 
     if (error) {
       return filterFallbackListings(params, page, limit);
@@ -441,10 +494,7 @@ export async function getListingBySlug(slug: string): Promise<ListingDetailDTO |
 
     const supabase = await createClient();
 
-    const { data, error } = await supabase
-      .from('listings')
-      .select(
-        `
+    const detailSelect = (withPhase2: boolean) => `
         id,
         slug,
         title,
@@ -466,6 +516,7 @@ export async function getListingBySlug(slug: string): Promise<ListingDetailDTO |
         seller_profiles (
           store_name,
           storefront_slug,
+          ${withPhase2 ? 'store_status, operating_hours_note, primary_pickup_spot, ug_student_verified,' : ''}
           user_id,
           halls (
             name,
@@ -481,11 +532,25 @@ export async function getListingBySlug(slug: string): Promise<ListingDetailDTO |
           display_order,
           is_primary
         )
-      `
-      )
+      `;
+
+    let { data, error } = await supabase
+      .from('listings')
+      .select(detailSelect(true))
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
+
+    if (error) {
+      const legacy = await supabase
+        .from('listings')
+        .select(detailSelect(false))
+        .eq('slug', slug)
+        .is('deleted_at', null)
+        .single();
+      data = legacy.data;
+      error = legacy.error;
+    }
 
     if (error || !data) {
       return FALLBACK_LISTINGS.find((item) => item.slug === slug) ?? null;
@@ -526,18 +591,26 @@ export async function getListingsByStorefrontSlug(
 
     const supabase = await createClient();
 
-    let query = supabase
-      .from('listings')
-      .select(LISTING_CARD_SELECT)
-      .eq('seller_profiles.storefront_slug', storefrontSlug)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+    const runStoreQuery = (selectClause: string) => {
+      let query = supabase
+        .from('listings')
+        .select(selectClause)
+        .eq('seller_profiles.storefront_slug', storefrontSlug)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
 
-    if (!includeUnavailable) {
-      query = query.in('availability_status', ['AVAILABLE', 'NEEDS_CONFIRMATION']);
+      if (!includeUnavailable) {
+        query = query.in('availability_status', ['AVAILABLE', 'NEEDS_CONFIRMATION']);
+      }
+      return query;
+    };
+
+    let { data, error } = await runStoreQuery(LISTING_CARD_SELECT);
+    if (error) {
+      const legacy = await runStoreQuery(LISTING_CARD_SELECT_LEGACY);
+      data = legacy.data;
+      error = legacy.error;
     }
-
-    const { data, error } = await query;
 
     if (error || !data) {
       return FALLBACK_LISTINGS.filter((l) => l.storefront_slug === storefrontSlug);

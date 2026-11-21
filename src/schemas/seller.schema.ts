@@ -31,11 +31,46 @@ export const CreateSellerProfileSchema = z.object({
   storefront_image_url: z.string().url('Invalid image URL.').optional(),
 });
 
+export const StoreOperatingStatusSchema = z.enum(['OPEN_NOW', 'PRE_ORDER', 'CLOSED']);
+
 export const UpdateSellerProfileSchema = CreateSellerProfileSchema.pick({
   store_description: true,
   storefront_image_url: true,
-}).partial();
+})
+  .extend({
+    store_status: StoreOperatingStatusSchema.optional(),
+    operating_hours_note: z
+      .string()
+      .max(120, 'Status note cannot exceed 120 characters.')
+      .transform(stripHtml)
+      .nullable()
+      .optional(),
+    primary_pickup_spot: z
+      .string()
+      .max(120, 'Pickup spot cannot exceed 120 characters.')
+      .transform(stripHtml)
+      .nullable()
+      .optional(),
+  })
+  .partial();
+
+export const UpdateStoreStatusSchema = z.object({
+  store_status: StoreOperatingStatusSchema,
+  operating_hours_note: z
+    .string()
+    .max(120, 'Status note cannot exceed 120 characters.')
+    .transform(stripHtml)
+    .nullable()
+    .optional(),
+  primary_pickup_spot: z
+    .string()
+    .max(120, 'Pickup spot cannot exceed 120 characters.')
+    .transform(stripHtml)
+    .nullable()
+    .optional(),
+});
 
 export type CreateSellerProfileInput = z.infer<typeof CreateSellerProfileSchema>;
 export type UpdateSellerProfileInput = z.infer<typeof UpdateSellerProfileSchema>;
+export type UpdateStoreStatusInput = z.infer<typeof UpdateStoreStatusSchema>;
 

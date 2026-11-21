@@ -3,9 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { createClient, createServerDbClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { PILOT_HALL, getErrorMessage, isSupabaseConfigured } from '@/lib/constants';
+import {
+  PILOT_HALL,
+  getErrorMessage,
+  isSupabaseConfigured,
+  isUgStudentEmail,
+} from '@/lib/constants';
 import { FALLBACK_CATEGORIES } from '@/repositories/category.repository';
 import type { ActionResult } from '@/types/api.types';
+import type { StoreOperatingStatus } from '@/types/database.types';
 
 const UG_UNIVERSITY_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -35,6 +41,10 @@ export interface ProvisionedSellerProfile {
   store_name: string;
   storefront_slug: string;
   is_approved: boolean;
+  store_status?: StoreOperatingStatus;
+  operating_hours_note?: string | null;
+  primary_pickup_spot?: string | null;
+  ug_student_verified?: boolean;
   halls: { name: string } | null;
 }
 
@@ -125,6 +135,7 @@ async function saveProfileAndSellerStorefront(
   db: DbClient,
   params: {
     userId: string;
+    email?: string;
     storeName: string;
     storefrontSlug: string;
     whatsappNumber: string;
@@ -184,18 +195,21 @@ async function saveProfileAndSellerStorefront(
     .eq('user_id', params.userId)
     .maybeSingle();
 
+  const ugStudentVerified = isUgStudentEmail(params.email);
+
   const sellerPayload = {
     user_id: params.userId,
     hall_id: PILOT_HALL.id,
     store_name: params.storeName,
     storefront_slug: finalSlug,
     store_description: params.storeDescription,
+    ug_student_verified: ugStudentVerified,
     is_approved: true,
     approved_at: now,
     updated_at: now,
   };
 
-  const { data: savedSeller, error: sellerError } = ownSeller
+  let { data: savedSeller, error: sellerError } = ownSeller
     ? await db
         .from('seller_profiles')
         .update(sellerPayload)
@@ -207,6 +221,33 @@ async function saveProfileAndSellerStorefront(
         .insert(sellerPayload)
         .select('id, store_name, storefront_slug, is_approved')
         .single();
+
+  if (sellerError?.message?.includes('ug_student_verified')) {
+    const legacyPayload = {
+      user_id: params.userId,
+      hall_id: PILOT_HALL.id,
+      store_name: params.storeName,
+      storefront_slug: finalSlug,
+      store_description: params.storeDescription,
+      is_approved: true,
+      approved_at: now,
+      updated_at: now,
+    };
+    const fallbackResult = ownSeller
+      ? await db
+          .from('seller_profiles')
+          .update(legacyPayload)
+          .eq('id', ownSeller.id)
+          .select('id, store_name, storefront_slug, is_approved')
+          .single()
+      : await db
+          .from('seller_profiles')
+          .insert(legacyPayload)
+          .select('id, store_name, storefront_slug, is_approved')
+          .single();
+    savedSeller = fallbackResult.data;
+    sellerError = fallbackResult.error;
+  }
 
   if (sellerError || !savedSeller) {
     return {
@@ -222,6 +263,10 @@ async function saveProfileAndSellerStorefront(
       store_name: savedSeller.store_name,
       storefront_slug: savedSeller.storefront_slug,
       is_approved: savedSeller.is_approved,
+      store_status: 'OPEN_NOW',
+      operating_hours_note: null,
+      primary_pickup_spot: null,
+      ug_student_verified: ugStudentVerified,
       halls: { name: PILOT_HALL.name },
     },
   };
@@ -249,14 +294,42 @@ export async function ensureSellerProfileForAuthUser(authUser: {
   if (!isSupabaseConfigured()) return null;
 
   const db = await createServerDbClient();
-  const { data: existingSeller } = await db
+  const { data: existingSeller, error: existingErr } = await db
     .from('seller_profiles')
-    .select('id, store_name, storefront_slug, is_approved, halls(name)')
+    .select(
+      'id, store_name, storefront_slug, is_approved, store_status, operating_hours_note, primary_pickup_spot, ug_student_verified, halls(name)'
+    )
     .eq('user_id', authUser.id)
     .maybeSingle();
 
   if (existingSeller) {
-    return existingSeller as unknown as ProvisionedSellerProfile;
+    const profile = existingSeller as unknown as ProvisionedSellerProfile;
+    if (!profile.ug_student_verified && isUgStudentEmail(authUser.email)) {
+      await db
+        .from('seller_profiles')
+        .update({ ug_student_verified: true })
+        .eq('id', profile.id);
+      profile.ug_student_verified = true;
+    }
+    return profile;
+  }
+
+  if (existingErr) {
+    const { data: legacySeller } = await db
+      .from('seller_profiles')
+      .select('id, store_name, storefront_slug, is_approved, halls(name)')
+      .eq('user_id', authUser.id)
+      .maybeSingle();
+
+    if (legacySeller) {
+      return {
+        ...(legacySeller as unknown as ProvisionedSellerProfile),
+        store_status: 'OPEN_NOW',
+        operating_hours_note: null,
+        primary_pickup_spot: null,
+        ug_student_verified: isUgStudentEmail(authUser.email),
+      };
+    }
   }
 
   const meta = (authUser.user_metadata ?? {}) as {
@@ -280,6 +353,7 @@ export async function ensureSellerProfileForAuthUser(authUser: {
 
   const result = await saveProfileAndSellerStorefront(db, {
     userId: authUser.id,
+    email: authUser.email,
     storeName: displayName,
     storefrontSlug: baseSlug,
     whatsappNumber: safeWhatsapp,
@@ -457,6 +531,7 @@ export async function registerSellerAccount(
 
     const saved = await saveProfileAndSellerStorefront(adminClient, {
       userId,
+      email,
       storeName,
       storefrontSlug,
       whatsappNumber: normalizedWhatsapp,
@@ -619,6 +694,7 @@ export async function completeStorefrontSetup(
     const db = await createServerDbClient();
     const saved = await saveProfileAndSellerStorefront(db, {
       userId: user.id,
+      email: user.email,
       storeName,
       storefrontSlug,
       whatsappNumber: normalizedWhatsapp,

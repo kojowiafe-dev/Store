@@ -7,13 +7,17 @@ import {
   Store,
   MapPin,
   MessageCircle,
-  CheckCircle2,
   Package,
 } from 'lucide-react';
 import { getStorefrontBySlug } from '@/repositories/seller.repository';
 import { getListingsByStorefrontSlug } from '@/repositories/listing.repository';
 import { buildDirectStoreWhatsAppUrl } from '@/lib/whatsapp';
-import { ListingGrid } from '@/components/listings/ListingGrid';
+import { StorefrontOrderCatalog } from '@/components/storefront/StorefrontOrderCatalog';
+import {
+  StoreStatusPill,
+  UgVerifiedBadge,
+  PickupSpotBadge,
+} from '@/components/ui/StoreTrustBadges';
 import { ShareButton } from '@/components/ui/ShareButton';
 
 interface StorefrontPageProps {
@@ -63,28 +67,38 @@ export default async function StorefrontPage({ params }: StorefrontPageProps) {
               )}
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-lg sm:text-xl font-semibold text-neutral-900">
                   {storefront.store_name}
                 </h1>
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-full">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  Verified Student
-                </span>
+                <UgVerifiedBadge
+                  ugStudentVerified={storefront.ug_student_verified}
+                  hallApproved={storefront.is_approved}
+                />
+                <StoreStatusPill
+                  status={storefront.store_status}
+                  note={storefront.operating_hours_note}
+                />
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-neutral-400 font-normal">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-400 font-normal">
                 <span className="inline-flex items-center gap-1 text-neutral-500">
                   <MapPin className="w-3 h-3 text-neutral-400" />
                   {storefront.hall_name}
                 </span>
                 <span>&middot;</span>
                 <span>{storefront.seller_display_name}</span>
+                {storefront.primary_pickup_spot && (
+                  <>
+                    <span>&middot;</span>
+                    <PickupSpotBadge pickupSpot={storefront.primary_pickup_spot} />
+                  </>
+                )}
               </div>
 
               {storefront.store_description && (
-                <p className="text-xs sm:text-sm text-neutral-600 max-w-xl pt-1 leading-relaxed font-normal">
+                <p className="text-xs sm:text-sm text-neutral-600 max-w-xl pt-0.5 leading-relaxed font-normal">
                   {storefront.store_description}
                 </p>
               )}
@@ -128,12 +142,16 @@ export default async function StorefrontPage({ params }: StorefrontPageProps) {
           </div>
 
           <span className="text-xs text-neutral-400 font-normal">
-            Collection: {storefront.hall_name}
+            Pickup: {storefront.primary_pickup_spot ?? storefront.hall_name}
           </span>
         </div>
 
-        <ListingGrid
+        <StorefrontOrderCatalog
           listings={listings}
+          storeName={storefront.store_name}
+          whatsappNumber={storefront.whatsapp_number}
+          hallName={storefront.hall_name}
+          pickupSpot={storefront.primary_pickup_spot}
           emptyMessage={`This storefront does not have active items right now. Message ${storefront.store_name} on WhatsApp for restock updates.`}
         />
       </div>

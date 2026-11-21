@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CreateListingSchema } from '../src/schemas/listing.schema';
-import { CreateSellerProfileSchema } from '../src/schemas/seller.schema';
-import { SubmitReportSchema } from '../src/schemas/report.schema';
+import { CreateListingSchema } from '../src/schemas/listing.schema.ts';
+import { CreateSellerProfileSchema, UpdateStoreStatusSchema } from '../src/schemas/seller.schema.ts';
+import { SubmitReportSchema } from '../src/schemas/report.schema.ts';
 
 test('CreateListingSchema validates valid inputs and strips HTML', () => {
   const result = CreateListingSchema.safeParse({
@@ -69,6 +69,23 @@ test('SubmitReportSchema validates known report reasons', () => {
   const invalid = SubmitReportSchema.safeParse({
     listing_id: '00000000-0000-0000-0000-000000000001',
     reason: 'non_existent_reason',
+  });
+  assert.strictEqual(invalid.success, false);
+});
+
+test('UpdateStoreStatusSchema validates operating status and strips HTML from notes', () => {
+  const valid = UpdateStoreStatusSchema.safeParse({
+    store_status: 'PRE_ORDER',
+    operating_hours_note: '<b>Next batch at 1:00 PM</b>',
+    primary_pickup_spot: "Jean Nelson Porter's Lodge",
+  });
+  assert.ok(valid.success);
+  if (valid.success) {
+    assert.strictEqual(valid.data.operating_hours_note, 'Next batch at 1:00 PM');
+  }
+
+  const invalid = UpdateStoreStatusSchema.safeParse({
+    store_status: 'INVALID_STATE',
   });
   assert.strictEqual(invalid.success, false);
 });

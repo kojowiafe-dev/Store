@@ -1,6 +1,6 @@
 import { createServerDbClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured, PILOT_HALL } from '@/lib/constants';
-import type { Database } from '@/types/database.types';
+import type { Database, StoreOperatingStatus } from '@/types/database.types';
 
 export type SellerProfileRow = Database['public']['Tables']['seller_profiles']['Row'];
 
@@ -11,6 +11,10 @@ export interface StorefrontDetails {
   store_description: string | null;
   storefront_image_url: string | null;
   is_approved: boolean;
+  store_status: StoreOperatingStatus;
+  operating_hours_note: string | null;
+  primary_pickup_spot: string | null;
+  ug_student_verified: boolean;
   hall_name: string;
   hall_slug: string;
   whatsapp_number: string;
@@ -25,6 +29,10 @@ interface StorefrontJoinResult {
   store_description: string | null;
   storefront_image_url: string | null;
   is_approved: boolean;
+  store_status?: StoreOperatingStatus;
+  operating_hours_note?: string | null;
+  primary_pickup_spot?: string | null;
+  ug_student_verified?: boolean;
   user_id: string;
   halls: { name: string; slug: string } | null;
   profiles: { display_name: string; whatsapp_number: string } | null;
@@ -39,6 +47,10 @@ export const FALLBACK_STOREFRONTS: Record<string, StorefrontDetails> = {
     storefront_image_url:
       'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=400&q=80',
     is_approved: true,
+    store_status: 'OPEN_NOW',
+    operating_hours_note: 'Cooking & available until 10:30 PM',
+    primary_pickup_spot: "Jean Nelson Porter's Lodge",
+    ug_student_verified: true,
     hall_name: PILOT_HALL.name,
     hall_slug: PILOT_HALL.slug,
     whatsapp_number: '+233501234567',
@@ -53,6 +65,10 @@ export const FALLBACK_STOREFRONTS: Record<string, StorefrontDetails> = {
     storefront_image_url:
       'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=400&q=80',
     is_approved: true,
+    store_status: 'PRE_ORDER',
+    operating_hours_note: 'Next hot batch ready at 1:00 PM',
+    primary_pickup_spot: 'Jean Nelson Bush Canteen Walkway',
+    ug_student_verified: true,
     hall_name: PILOT_HALL.name,
     hall_slug: PILOT_HALL.slug,
     whatsapp_number: '+233509876543',
@@ -67,6 +83,10 @@ export const FALLBACK_STOREFRONTS: Record<string, StorefrontDetails> = {
     storefront_image_url:
       'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=400&q=80',
     is_approved: true,
+    store_status: 'OPEN_NOW',
+    operating_hours_note: 'Fittings & pickup 2:00 PM – 9:00 PM',
+    primary_pickup_spot: 'Jean Nelson Block C Common Room',
+    ug_student_verified: true,
     hall_name: PILOT_HALL.name,
     hall_slug: PILOT_HALL.slug,
     whatsapp_number: '+233541112233',
@@ -82,6 +102,10 @@ export const FALLBACK_STOREFRONTS: Record<string, StorefrontDetails> = {
     storefront_image_url:
       'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?auto=format&fit=crop&w=400&q=80',
     is_approved: true,
+    store_status: 'OPEN_NOW',
+    operating_hours_note: 'Quick room drop-offs all day',
+    primary_pickup_spot: 'Balme Library Drop-off',
+    ug_student_verified: false,
     hall_name: PILOT_HALL.name,
     hall_slug: PILOT_HALL.slug,
     whatsapp_number: '+233203334455',
@@ -97,7 +121,7 @@ export async function getStorefrontBySlug(slug: string): Promise<StorefrontDetai
     }
 
     const supabase = await createServerDbClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('seller_profiles')
       .select(
         `
@@ -107,6 +131,10 @@ export async function getStorefrontBySlug(slug: string): Promise<StorefrontDetai
         store_description,
         storefront_image_url,
         is_approved,
+        store_status,
+        operating_hours_note,
+        primary_pickup_spot,
+        ug_student_verified,
         user_id,
         halls (
           name,
@@ -122,6 +150,35 @@ export async function getStorefrontBySlug(slug: string): Promise<StorefrontDetai
       .eq('is_approved', true)
       .single<StorefrontJoinResult>();
 
+    if (error) {
+      const legacy = await supabase
+        .from('seller_profiles')
+        .select(
+          `
+          id,
+          store_name,
+          storefront_slug,
+          store_description,
+          storefront_image_url,
+          is_approved,
+          user_id,
+          halls (
+            name,
+            slug
+          ),
+          profiles:user_id (
+            display_name,
+            whatsapp_number
+          )
+        `
+        )
+        .eq('storefront_slug', slug)
+        .eq('is_approved', true)
+        .single<StorefrontJoinResult>();
+      data = legacy.data;
+      error = legacy.error;
+    }
+
     if (error || !data) {
       return FALLBACK_STOREFRONTS[slug] ?? null;
     }
@@ -133,6 +190,10 @@ export async function getStorefrontBySlug(slug: string): Promise<StorefrontDetai
       store_description: data.store_description,
       storefront_image_url: data.storefront_image_url,
       is_approved: data.is_approved,
+      store_status: data.store_status ?? 'OPEN_NOW',
+      operating_hours_note: data.operating_hours_note ?? null,
+      primary_pickup_spot: data.primary_pickup_spot ?? null,
+      ug_student_verified: Boolean(data.ug_student_verified),
       hall_name: data.halls?.name ?? PILOT_HALL.name,
       hall_slug: data.halls?.slug ?? PILOT_HALL.slug,
       whatsapp_number: data.profiles?.whatsapp_number ?? '+233501234567',

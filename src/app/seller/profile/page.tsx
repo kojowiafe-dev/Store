@@ -1,10 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Store, MapPin, Phone } from 'lucide-react';
+import { ArrowLeft, Store, MapPin, Phone, GraduationCap } from 'lucide-react';
 import { createClient, createServerDbClient } from '@/lib/supabase/server';
-import { PILOT_HALL, isSupabaseConfigured } from '@/lib/constants';
+import { PILOT_HALL, isSupabaseConfigured, isUgStudentEmail } from '@/lib/constants';
 import { redirect } from 'next/navigation';
 import { SellerProfileForm } from '@/components/seller/SellerProfileForm';
+import type { StoreOperatingStatus } from '@/types/database.types';
 
 interface SellerSettingsData {
   id: string;
@@ -12,12 +13,17 @@ interface SellerSettingsData {
   storefront_slug: string;
   store_description: string | null;
   storefront_image_url: string | null;
+  store_status?: StoreOperatingStatus;
+  operating_hours_note?: string | null;
+  primary_pickup_spot?: string | null;
+  ug_student_verified?: boolean;
   halls: { name: string } | null;
 }
 
 export default async function SellerProfilePage() {
   let seller: SellerSettingsData | null = null;
   let whatsappNumber = '+233501234567';
+  let userEmail: string | undefined;
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -29,6 +35,7 @@ export default async function SellerProfilePage() {
       redirect('/seller/login');
     }
 
+    userEmail = user.email;
     const db = await createServerDbClient();
 
     const { data: profile } = await db
@@ -41,7 +48,7 @@ export default async function SellerProfilePage() {
       whatsappNumber = profile.whatsapp_number;
     }
 
-    const { data: sellerData } = await db
+    let { data: sellerData, error: sellerErr } = await db
       .from('seller_profiles')
       .select(`
         id,
@@ -49,6 +56,10 @@ export default async function SellerProfilePage() {
         storefront_slug,
         store_description,
         storefront_image_url,
+        store_status,
+        operating_hours_note,
+        primary_pickup_spot,
+        ug_student_verified,
         halls (
           name
         )
@@ -56,14 +67,38 @@ export default async function SellerProfilePage() {
       .eq('user_id', user.id)
       .maybeSingle();
 
+    if (sellerErr) {
+      const legacy = await db
+        .from('seller_profiles')
+        .select(`
+          id,
+          store_name,
+          storefront_slug,
+          store_description,
+          storefront_image_url,
+          halls (
+            name
+          )
+        `)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      sellerData = legacy.data as unknown as typeof sellerData;
+      sellerErr = legacy.error;
+    }
+
     seller = sellerData as unknown as SellerSettingsData | null;
   } else {
+    userEmail = 'ama.osei@st.ug.edu.gh';
     seller = {
       id: 'bbbbbbbb-0000-0000-0000-000000000001',
       store_name: "Ama's Kitchen",
       storefront_slug: 'amas-kitchen',
       store_description: 'Fresh, warm homemade student meals delivered hot to Jean Nelson AKA Hall.',
       storefront_image_url: null,
+      store_status: 'OPEN_NOW',
+      operating_hours_note: 'Cooking & available until 10:30 PM',
+      primary_pickup_spot: "Jean Nelson Porter's Lodge",
+      ug_student_verified: true,
       halls: { name: PILOT_HALL.name },
     };
   }
@@ -73,6 +108,7 @@ export default async function SellerProfilePage() {
   }
 
   const hallName = seller.halls?.name ?? PILOT_HALL.name;
+  const isUgVerified = Boolean(seller.ug_student_verified) || isUgStudentEmail(userEmail);
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -124,10 +160,29 @@ export default async function SellerProfilePage() {
               /store/{seller.storefront_slug}
             </span>
           </div>
+
+          <div className="sm:col-span-2 pt-2 border-t border-neutral-200/70">
+            <span className="text-neutral-400 block mb-1 font-normal">UG Student Verification</span>
+            {isUgVerified ? (
+              <span className="inline-flex items-center gap-1.5 text-ug-navy font-medium">
+                <GraduationCap className="w-3.5 h-3.5 text-ug-navy" />
+                Verified UG Student ({userEmail ?? '@st.ug.edu.gh'})
+              </span>
+            ) : (
+              <span className="text-neutral-500 font-normal">
+                Sign up or register with an <span className="font-mono text-neutral-700">@st.ug.edu.gh</span> student email to automatically earn the <strong className="font-medium text-neutral-700">UG Student Verified</strong> trust badge.
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Editable Form */}
-        <SellerProfileForm initialDescription={seller.store_description ?? ''} />
+        <SellerProfileForm
+          initialDescription={seller.store_description ?? ''}
+          initialStatus={seller.store_status ?? 'OPEN_NOW'}
+          initialOperatingNote={seller.operating_hours_note ?? ''}
+          initialPickupSpot={seller.primary_pickup_spot ?? ''}
+        />
       </div>
     </div>
   );

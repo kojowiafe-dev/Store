@@ -14,6 +14,11 @@ import { getListingBySlug } from '@/repositories/listing.repository';
 import { formatPrice, formatRelativeDate } from '@/lib/utils';
 import { buildWhatsAppUrl } from '@/lib/whatsapp';
 import { StatusBadge } from '@/components/ui/Badge';
+import {
+  StoreStatusPill,
+  UgVerifiedBadge,
+  PickupSpotBadge,
+} from '@/components/ui/StoreTrustBadges';
 import { ListingImageGallery } from '@/components/listings/ListingImageGallery';
 import { WhatsAppContactButton } from '@/components/listings/WhatsAppContactButton';
 import { ReportModal } from '@/components/listings/ReportModal';
@@ -78,7 +83,7 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Category & Hall Metadata */}
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-400 border-b border-neutral-100 pb-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-ug-navy bg-ug-navy/5 px-2.5 py-0.5 rounded-md text-[11px]">
                 {listing.category_name}
               </span>
@@ -86,6 +91,9 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
                 <MapPin className="w-3 h-3 text-neutral-400" />
                 {listing.hall_name}
               </span>
+              {listing.primary_pickup_spot && (
+                <PickupSpotBadge pickupSpot={listing.primary_pickup_spot} />
+              )}
             </div>
 
             <div className="inline-flex items-center gap-1 text-neutral-400 text-[11px] font-normal">
@@ -158,13 +166,28 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
                 <div className="w-9 h-9 rounded-lg bg-white border border-neutral-200/60 text-ug-navy flex items-center justify-center shrink-0">
                   <Store className="w-4 h-4 text-ug-navy" strokeWidth={1.75} />
                 </div>
-                <div>
-                  <h4 className="font-medium text-xs sm:text-sm text-neutral-800 group-hover:text-ug-navy transition-colors">
-                    {listing.seller_store_name}
-                  </h4>
-                  <p className="text-[11px] text-neutral-400 flex items-center gap-1 font-normal">
-                    <span>{listing.hall_name}</span>
-                  </p>
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <h4 className="font-medium text-xs sm:text-sm text-neutral-800 group-hover:text-ug-navy transition-colors">
+                      {listing.seller_store_name}
+                    </h4>
+                    <UgVerifiedBadge
+                      ugStudentVerified={listing.ug_student_verified}
+                      hallApproved
+                      compact
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-400 font-normal">
+                    <StoreStatusPill
+                      status={listing.store_status}
+                      note={listing.operating_hours_note}
+                      compact
+                    />
+                    <span>&middot;</span>
+                    <span className="truncate">
+                      {listing.primary_pickup_spot ?? listing.hall_name}
+                    </span>
+                  </div>
                 </div>
               </div>
 

@@ -1,17 +1,32 @@
 'use client';
 
 import React, { useState, useTransition } from 'react';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, MapPin, Clock } from 'lucide-react';
 import { updateSellerProfile } from '@/actions/seller.actions';
+import { PRESET_PICKUP_SPOTS, STORE_STATUS_META } from '@/lib/constants';
 import { useToast } from '@/components/ui/Toast';
+import type { StoreOperatingStatus } from '@/types/database.types';
 
 interface SellerProfileFormProps {
   initialDescription: string;
+  initialStatus?: StoreOperatingStatus;
+  initialOperatingNote?: string;
+  initialPickupSpot?: string;
 }
 
-export function SellerProfileForm({ initialDescription }: SellerProfileFormProps) {
+const STATUS_OPTIONS: StoreOperatingStatus[] = ['OPEN_NOW', 'PRE_ORDER', 'CLOSED'];
+
+export function SellerProfileForm({
+  initialDescription,
+  initialStatus = 'OPEN_NOW',
+  initialOperatingNote = '',
+  initialPickupSpot = '',
+}: SellerProfileFormProps) {
   const toast = useToast();
   const [description, setDescription] = useState(initialDescription);
+  const [storeStatus, setStoreStatus] = useState<StoreOperatingStatus>(initialStatus);
+  const [operatingNote, setOperatingNote] = useState(initialOperatingNote);
+  const [pickupSpot, setPickupSpot] = useState(initialPickupSpot);
   const [isPending, startTransition] = useTransition();
   const [success, setSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -24,6 +39,9 @@ export function SellerProfileForm({ initialDescription }: SellerProfileFormProps
     startTransition(async () => {
       const result = await updateSellerProfile({
         store_description: description.trim() || undefined,
+        store_status: storeStatus,
+        operating_hours_note: operatingNote.trim() || null,
+        primary_pickup_spot: pickupSpot.trim() || null,
       });
 
       if (!result.success) {
@@ -39,7 +57,7 @@ export function SellerProfileForm({ initialDescription }: SellerProfileFormProps
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3.5 pt-1">
+    <form onSubmit={handleSubmit} className="space-y-4 pt-1">
       {errorMessage && (
         <div className="p-3 rounded-xl bg-rose-50 border border-rose-200/80 flex items-center gap-2 text-xs text-rose-700">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -53,6 +71,69 @@ export function SellerProfileForm({ initialDescription }: SellerProfileFormProps
           <span>Storefront profile updated successfully!</span>
         </div>
       )}
+
+      {/* Operating Status Selector */}
+      <div>
+        <label className="block text-xs font-medium text-neutral-700 mb-1.5">
+          Store Operating Status
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {STATUS_OPTIONS.map((option) => {
+            const active = storeStatus === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setStoreStatus(option)}
+                className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                  active
+                    ? 'bg-ug-navy text-white border-ug-navy shadow-2xs'
+                    : 'bg-white text-neutral-600 border-neutral-200/90 hover:border-neutral-300'
+                }`}
+              >
+                {STORE_STATUS_META[option].label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Pickup Spot + Operating Hours Note */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="flex items-center gap-1 text-xs font-medium text-neutral-700 mb-1.5">
+            <MapPin className="w-3.5 h-3.5 text-ug-navy" />
+            <span>Primary Campus Pickup Spot</span>
+          </label>
+          <select
+            value={pickupSpot}
+            onChange={(e) => setPickupSpot(e.target.value)}
+            className="w-full text-xs sm:text-sm px-3 py-2.5 rounded-xl border border-neutral-200/90 bg-white focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs"
+          >
+            <option value="">Select pickup spot (optional)</option>
+            {PRESET_PICKUP_SPOTS.map((spot) => (
+              <option key={spot} value={spot}>
+                {spot}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-1 text-xs font-medium text-neutral-700 mb-1.5">
+            <Clock className="w-3.5 h-3.5 text-neutral-400" />
+            <span>Operating Hours / Batch Note</span>
+          </label>
+          <input
+            type="text"
+            maxLength={120}
+            value={operatingNote}
+            onChange={(e) => setOperatingNote(e.target.value)}
+            placeholder="e.g. Cooking & available until 10:30 PM"
+            className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-neutral-200/90 focus:outline-none focus:border-ug-navy focus:ring-1 focus:ring-ug-navy/15 transition-all shadow-2xs font-normal placeholder:text-neutral-400"
+          />
+        </div>
+      </div>
 
       <div>
         <label className="block text-xs font-medium text-neutral-700 mb-1.5">

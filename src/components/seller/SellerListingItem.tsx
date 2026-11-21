@@ -23,6 +23,7 @@ import {
 import { formatPrice, formatRelativeDate } from '@/lib/utils';
 import { buildAdminAdWhatsAppUrl } from '@/lib/whatsapp';
 import { StatusBadge } from '@/components/ui/Badge';
+import { StatusFlyerModal } from '@/components/seller/StatusFlyerModal';
 import { useToast } from '@/components/ui/Toast';
 import type { ListingAvailabilityStatus } from '@/types/database.types';
 
@@ -38,15 +39,20 @@ interface SellerListingItemProps {
     confirm_before: string | null;
     expires_at: string | null;
     created_at: string;
+    primary_image_path?: string | null;
   };
   storeName?: string;
   storefrontSlug?: string;
+  hallName?: string;
+  pickupSpot?: string | null;
 }
 
 export function SellerListingItem({
   listing,
   storeName,
   storefrontSlug,
+  hallName,
+  pickupSpot,
 }: SellerListingItemProps) {
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
@@ -193,6 +199,17 @@ export function SellerListingItem({
             <Pause className="w-3 h-3 text-neutral-500" />
             <span>Pause</span>
           </button>
+        )}
+
+        {/* WhatsApp Status 9:16 Flyer Generator */}
+        {(isAvailable || isNeedsConfirmation) && storeName && storefrontSlug && (
+          <StatusFlyerModal
+            listing={listing}
+            storeName={storeName}
+            storefrontSlug={storefrontSlug}
+            hallName={hallName}
+            pickupSpot={pickupSpot}
+          />
         )}
 
         {/* Boost Item via Admin WhatsApp */}

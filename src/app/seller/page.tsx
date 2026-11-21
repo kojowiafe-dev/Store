@@ -21,8 +21,10 @@ import { CompleteStorefrontSetup } from '@/components/seller/CompleteStorefrontS
 import { SellerListingItem } from '@/components/seller/SellerListingItem';
 import { SignOutButton } from '@/components/seller/SignOutButton';
 import { StoreQRCodeModal } from '@/components/seller/StoreQRCodeModal';
+import { StoreStatusQuickBar } from '@/components/seller/StoreStatusQuickBar';
+import { UgVerifiedBadge } from '@/components/ui/StoreTrustBadges';
 import { ShareButton } from '@/components/ui/ShareButton';
-import type { ListingAvailabilityStatus } from '@/types/database.types';
+import type { ListingAvailabilityStatus, StoreOperatingStatus } from '@/types/database.types';
 
 interface DashboardListing {
   id: string;
@@ -35,6 +37,7 @@ interface DashboardListing {
   confirm_before: string | null;
   expires_at: string | null;
   created_at: string;
+  primary_image_path?: string | null;
 }
 
 interface DashboardSeller {
@@ -42,6 +45,10 @@ interface DashboardSeller {
   store_name: string;
   storefront_slug: string;
   is_approved: boolean;
+  store_status?: StoreOperatingStatus;
+  operating_hours_note?: string | null;
+  primary_pickup_spot?: string | null;
+  ug_student_verified?: boolean;
   halls: { name: string } | null;
 }
 
@@ -69,13 +76,32 @@ export default async function SellerDashboardPage() {
       const { data: listingData } = await db
         .from('listings')
         .select(
-          'id, slug, title, price, currency, price_negotiable, availability_status, confirm_before, expires_at, created_at'
+          'id, slug, title, price, currency, price_negotiable, availability_status, confirm_before, expires_at, created_at, listing_images(storage_path, is_primary)'
         )
         .eq('seller_id', seller.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      listings = (listingData ?? []) as unknown as DashboardListing[];
+      type RawDashboardRow = Omit<DashboardListing, 'primary_image_path'> & {
+        listing_images?: Array<{ storage_path: string; is_primary: boolean }> | null;
+      };
+
+      listings = ((listingData ?? []) as unknown as RawDashboardRow[]).map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        title: row.title,
+        price: row.price,
+        currency: row.currency,
+        price_negotiable: row.price_negotiable,
+        availability_status: row.availability_status,
+        confirm_before: row.confirm_before,
+        expires_at: row.expires_at,
+        created_at: row.created_at,
+        primary_image_path:
+          row.listing_images?.find((img) => img.is_primary)?.storage_path ??
+          row.listing_images?.[0]?.storage_path ??
+          null,
+      }));
 
       if (listings.length > 0) {
         const listingIds = listings.map((l) => l.id);
@@ -96,6 +122,10 @@ export default async function SellerDashboardPage() {
       store_name: "Ama's Kitchen (Demo)",
       storefront_slug: 'amas-kitchen',
       is_approved: true,
+      store_status: 'OPEN_NOW',
+      operating_hours_note: 'Cooking & available until 10:30 PM',
+      primary_pickup_spot: "Jean Nelson Porter's Lodge",
+      ug_student_verified: true,
       halls: { name: PILOT_HALL.name },
     };
 
@@ -162,6 +192,9 @@ export default async function SellerDashboardPage() {
                   Pending Approval
                 </span>
               )}
+              {seller.ug_student_verified && (
+                <UgVerifiedBadge ugStudentVerified hallApproved={seller.is_approved} />
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-neutral-400 font-normal">
@@ -213,6 +246,13 @@ export default async function SellerDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Live Store Status & Pickup Spot Quick Bar */}
+      <StoreStatusQuickBar
+        initialStatus={seller.store_status ?? 'OPEN_NOW'}
+        initialNote={seller.operating_hours_note ?? ''}
+        initialPickupSpot={seller.primary_pickup_spot ?? ''}
+      />
 
       {/* Quick Seller Insights */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
@@ -307,6 +347,8 @@ export default async function SellerDashboardPage() {
                 listing={item}
                 storeName={seller.store_name}
                 storefrontSlug={seller.storefront_slug}
+                hallName={hallName}
+                pickupSpot={seller.primary_pickup_spot}
               />
             ))}
           </div>

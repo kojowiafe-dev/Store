@@ -1,4 +1,4 @@
-import type { ListingAvailabilityStatus } from './database.types';
+import type { ListingAvailabilityStatus, StoreOperatingStatus } from './database.types';
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -30,6 +30,10 @@ export interface PublicListingCardDTO {
   whatsapp_number: string;
   primary_image_path: string | null;
   created_at: string;
+  store_status?: StoreOperatingStatus;
+  operating_hours_note?: string | null;
+  primary_pickup_spot?: string | null;
+  ug_student_verified?: boolean;
 }
 
 export interface PublicStorefrontDTO {
@@ -40,6 +44,10 @@ export interface PublicStorefrontDTO {
   storefront_image_url: string | null;
   hall_name: string;
   whatsapp_number: string;
+  store_status?: StoreOperatingStatus;
+  operating_hours_note?: string | null;
+  primary_pickup_spot?: string | null;
+  ug_student_verified?: boolean;
   listings: PublicListingCardDTO[];
 }
 
