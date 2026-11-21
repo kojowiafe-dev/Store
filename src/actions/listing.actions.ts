@@ -13,8 +13,8 @@ import { CreateListingSchema, type CreateListingInput } from '@/schemas/listing.
 import type { ActionResult } from '@/types/api.types';
 
 interface CategoryTiming {
-  default_expiry_hours: number;
-  default_confirm_lead_hours: number;
+  default_expiry_hours: number | null;
+  default_confirm_lead_hours: number | null;
 }
 
 interface OwnedListingRow {
@@ -55,11 +55,11 @@ function revalidateListingPaths(listingSlug: string, storefrontSlug?: string | n
 
 async function getAuthenticatedOwnedListing(listingId: string): Promise<
   | {
-      ok: true;
-      supabase: Awaited<ReturnType<typeof createServerDbClient>>;
-      userId: string;
-      listing: OwnedListingRow;
-    }
+    ok: true;
+    supabase: Awaited<ReturnType<typeof createServerDbClient>>;
+    userId: string;
+    listing: OwnedListingRow;
+  }
   | { ok: false; error: string }
 > {
   const supabase = await createClient();

@@ -56,7 +56,7 @@ export default async function SellerProfilePage() {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    seller = sellerData as SellerSettingsData | null;
+    seller = sellerData as unknown as SellerSettingsData | null;
   } else {
     seller = {
       id: 'bbbbbbbb-0000-0000-0000-000000000001',

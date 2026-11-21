@@ -72,7 +72,7 @@ export default async function SellerDashboardPage() {
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      listings = (listingData ?? []) as DashboardListing[];
+      listings = (listingData ?? []) as unknown as DashboardListing[];
 
       if (listings.length > 0) {
         const listingIds = listings.map((l) => l.id);
