@@ -1,5 +1,4 @@
 import { createServerClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/types/database.types';
 
@@ -35,7 +34,7 @@ export async function middleware(request: NextRequest) {
         );
       },
     },
-  }) as unknown as SupabaseClient<Database>;
+  });
 
   const {
     data: { user },
@@ -54,11 +53,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Protect seller portal routes (allow login and register pages)
+  // Protect seller portal routes (allow login, register, and public promote info page)
   if (
     pathname.startsWith('/seller') &&
     !pathname.startsWith('/seller/login') &&
-    !pathname.startsWith('/seller/register')
+    !pathname.startsWith('/seller/register') &&
+    !pathname.startsWith('/seller/promote')
   ) {
     if (!user) {
       const url = request.nextUrl.clone();
@@ -98,4 +98,3 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/seller/:path*', '/admin/:path*'],
 };
-

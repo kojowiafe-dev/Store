@@ -10,10 +10,13 @@ import {
   CheckCircle2,
   AlertCircle,
   Settings,
+  Megaphone,
+  MessageCircle,
 } from 'lucide-react';
 import { createClient, createServerDbClient } from '@/lib/supabase/server';
 import { ensureSellerProfileForAuthUser } from '@/actions/auth.actions';
 import { PILOT_HALL, isSupabaseConfigured } from '@/lib/constants';
+import { buildAdminAdWhatsAppUrl } from '@/lib/whatsapp';
 import { CompleteStorefrontSetup } from '@/components/seller/CompleteStorefrontSetup';
 import { SellerListingItem } from '@/components/seller/SellerListingItem';
 import { SignOutButton } from '@/components/seller/SignOutButton';
@@ -133,6 +136,10 @@ export default async function SellerDashboardPage() {
   const needsConfirmCount = listings.filter(
     (l) => l.availability_status === 'NEEDS_CONFIRMATION'
   ).length;
+  const adminAdUrl = buildAdminAdWhatsAppUrl({
+    storeName: seller.store_name,
+    storefrontSlug: seller.storefront_slug,
+  });
 
   return (
     <div className="space-y-5 sm:space-y-6 max-w-3xl mx-auto">
@@ -225,6 +232,41 @@ export default async function SellerDashboardPage() {
         </div>
       </div>
 
+      {/* Promote & Advertise Banner */}
+      <div className="bg-ug-navy text-white rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shadow-xs">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-300">
+            <Megaphone className="w-3.5 h-3.5" />
+            <span>Sponsored Placement &middot; From GH₵25</span>
+          </div>
+          <h2 className="text-sm sm:text-base font-semibold text-white">
+            Boost Your Storefront &amp; Products in {PILOT_HALL.name}
+          </h2>
+          <p className="text-xs text-neutral-300 font-normal leading-relaxed">
+            Pin your listings to the top of the homepage or feature {seller.store_name} first in the Hall Stores bar.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Link
+            href="/seller/promote"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-white text-ug-navy hover:bg-neutral-100 transition-colors"
+          >
+            <Megaphone className="w-3.5 h-3.5" />
+            <span>Ad Packages</span>
+          </Link>
+          <a
+            href={adminAdUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-[#128C7E] hover:bg-[#075E54] text-white transition-colors"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>Pay Admin for Ads</span>
+          </a>
+        </div>
+      </div>
+
       {/* Expiry Rule Reminder Banner */}
       <div className="p-3.5 bg-neutral-50/80 border border-neutral-200/80 rounded-xl text-xs text-neutral-600 flex items-start gap-2.5 font-normal leading-relaxed">
         <Clock className="w-4 h-4 text-ug-navy shrink-0 mt-0.5" />
@@ -260,7 +302,12 @@ export default async function SellerDashboardPage() {
         ) : (
           <div className="space-y-2.5">
             {listings.map((item) => (
-              <SellerListingItem key={item.id} listing={item} />
+              <SellerListingItem
+                key={item.id}
+                listing={item}
+                storeName={seller.store_name}
+                storefrontSlug={seller.storefront_slug}
+              />
             ))}
           </div>
         )}

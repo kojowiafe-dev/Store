@@ -425,10 +425,12 @@ export interface Database {
         ];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      [_ in never]: never;
+    };
     Functions: {
       process_listing_expiry_transitions: {
-        Args: Record<string, never>;
+        Args: Record<PropertyKey, never>;
         Returns: Json;
       };
     };
@@ -437,6 +439,8 @@ export interface Database {
       report_reason: ReportReason;
       report_status: ReportStatus;
     };
-    CompositeTypes: Record<string, never>;
+    CompositeTypes: {
+      [_ in never]: never;
+    };
   };
 }

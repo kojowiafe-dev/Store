@@ -11,6 +11,7 @@ import {
   Clock,
   Archive,
   Pencil,
+  Megaphone,
 } from 'lucide-react';
 import {
   confirmAvailability,
@@ -20,6 +21,7 @@ import {
   deleteListing,
 } from '@/actions/listing.actions';
 import { formatPrice, formatRelativeDate } from '@/lib/utils';
+import { buildAdminAdWhatsAppUrl } from '@/lib/whatsapp';
 import { StatusBadge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import type { ListingAvailabilityStatus } from '@/types/database.types';
@@ -37,12 +39,26 @@ interface SellerListingItemProps {
     expires_at: string | null;
     created_at: string;
   };
+  storeName?: string;
+  storefrontSlug?: string;
 }
 
-export function SellerListingItem({ listing }: SellerListingItemProps) {
+export function SellerListingItem({
+  listing,
+  storeName,
+  storefrontSlug,
+}: SellerListingItemProps) {
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const boostListingUrl = buildAdminAdWhatsAppUrl({
+    packageTitle: 'Featured Product Boost',
+    priceLabel: 'GH₵25 / 3 Days',
+    storeName,
+    storefrontSlug,
+    listingTitle: listing.title,
+  });
 
   const handleConfirm = () => {
     startTransition(async () => {
@@ -177,6 +193,20 @@ export function SellerListingItem({ listing }: SellerListingItemProps) {
             <Pause className="w-3 h-3 text-neutral-500" />
             <span>Pause</span>
           </button>
+        )}
+
+        {/* Boost Item via Admin WhatsApp */}
+        {(isAvailable || isNeedsConfirmation) && (
+          <a
+            href={boostListingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ug-navy bg-ug-navy/5 hover:bg-ug-navy/10 border border-ug-navy/15 transition-colors"
+            title="Promote this listing with Admin"
+          >
+            <Megaphone className="w-3 h-3" />
+            <span>Boost</span>
+          </a>
         )}
 
         {/* Edit */}

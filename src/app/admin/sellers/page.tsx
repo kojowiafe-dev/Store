@@ -41,13 +41,30 @@ export default async function AdminSellersPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 text-xs font-normal text-neutral-500 hover:text-neutral-800 transition-colors"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        <span>Back to Marketplace</span>
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-normal text-neutral-500 hover:text-neutral-800 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Marketplace</span>
+        </Link>
+
+        <div className="inline-flex items-center bg-white border border-neutral-200/80 rounded-xl p-1 text-xs shadow-2xs">
+          <Link
+            href="/admin/sellers"
+            className="px-3 py-1 rounded-lg font-medium bg-ug-navy text-white"
+          >
+            Seller Approvals
+          </Link>
+          <Link
+            href="/admin/reports"
+            className="px-3 py-1 rounded-lg font-normal text-neutral-600 hover:text-neutral-900 transition-colors"
+          >
+            Buyer Reports
+          </Link>
+        </div>
+      </div>
 
       <div className="bg-white border border-neutral-200/80 rounded-2xl p-5 sm:p-7 shadow-2xs">
         <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100 mb-5">

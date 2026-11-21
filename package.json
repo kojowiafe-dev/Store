@@ -9,7 +9,8 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/utils.test.ts tests/whatsapp.test.ts tests/schemas.test.ts",
-    "db:types": "supabase gen types typescript --local > src/types/database.types.ts"
+    "db:types": "supabase gen types typescript --local > src/types/database.types.ts",
+    "postinstall": "node scripts/patch-supabase-ssr.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -23,7 +24,6 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

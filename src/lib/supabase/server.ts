@@ -27,7 +27,7 @@ export async function createClient(): Promise<SupabaseClient<Database>> {
         },
       },
     }
-  ) as unknown as SupabaseClient<Database>;
+  );
 }
 
 export async function createServerDbClient(): Promise<SupabaseClient<Database>> {
