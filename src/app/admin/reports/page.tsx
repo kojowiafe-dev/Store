@@ -4,8 +4,22 @@ import { ArrowLeft, Flag, CheckCircle2 } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { TakedownButton } from '@/components/admin/TakedownButton';
 
+interface PendingReportRow {
+  id: string;
+  reason: string;
+  details: string | null;
+  status: string;
+  created_at: string;
+  listings: {
+    id: string;
+    title: string;
+    slug: string;
+    availability_status: string;
+  } | null;
+}
+
 export default async function AdminReportsPage() {
-  let reports: any[] = [];
+  let reports: PendingReportRow[] = [];
 
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
@@ -28,7 +42,7 @@ export default async function AdminReportsPage() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-      reports = data ?? [];
+      reports = (data ?? []) as unknown as PendingReportRow[];
     } catch {
       reports = [];
     }
@@ -70,7 +84,7 @@ export default async function AdminReportsPage() {
         ) : (
           <div className="divide-y divide-neutral-100">
             {reports.map((report) => {
-              const listing = report.listings as any;
+              const listing = report.listings;
 
               return (
                 <div

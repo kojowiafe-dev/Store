@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getErrorMessage } from '@/lib/constants';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: NextRequest) {
@@ -60,9 +61,9 @@ export async function GET(request: NextRequest) {
       data,
       timestamp: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { error: err.message ?? 'Cron execution failed.' },
+      { error: getErrorMessage(err, 'Cron execution failed.') },
       { status: 500 }
     );
   }

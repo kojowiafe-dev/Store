@@ -426,7 +426,12 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      process_listing_expiry_transitions: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+    };
     Enums: {
       listing_availability_status: ListingAvailabilityStatus;
       report_reason: ReportReason;
